@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import Iterable
 
-from .models import AnnotatedLine, OverrideCreate, OverrideItem, OverrideUpdate, ProjectCreate, ProjectItem, ProjectSummary
+from .models import AnnotatedLine, LayoutSettings, OverrideCreate, OverrideItem, OverrideUpdate, ProjectCreate, ProjectItem, ProjectSummary
 
 _DB_PATH = Path(os.getenv("DB_PATH", "/data/furigana.sqlite3"))
 _LOCK = threading.RLock()
@@ -38,6 +38,9 @@ def init_db() -> None:
             );
             """
         )
+        project_columns = {row[1] for row in conn.execute("PRAGMA table_info(projects)")}
+        if "layout_json" not in project_columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN layout_json TEXT NOT NULL DEFAULT '{}'")
         columns = {row[1] for row in conn.execute("PRAGMA table_info(ruby_overrides)")}
         if columns and "scope" not in columns:
             conn.execute("ALTER TABLE ruby_overrides RENAME TO ruby_overrides_legacy")
@@ -151,13 +154,14 @@ def update_override(override_id: int, item: OverrideUpdate) -> OverrideItem | No
 
 def save_project(item: ProjectCreate) -> ProjectItem:
     payload = json.dumps([line.model_dump() for line in item.lines], ensure_ascii=False)
+    layout = item.layout.model_dump_json()
     with _LOCK, _connect() as conn:
         cur = conn.execute(
             """
-            INSERT INTO projects(title, artist, year, source_text, lines_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO projects(title, artist, year, source_text, layout_json, lines_json)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (item.title, item.artist, item.year, item.source_text, payload),
+            (item.title, item.artist, item.year, item.source_text, layout, payload),
         )
         project_id = int(cur.lastrowid)
         row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
@@ -166,12 +170,13 @@ def save_project(item: ProjectCreate) -> ProjectItem:
 
 def update_project(project_id: int, item: ProjectCreate) -> ProjectItem | None:
     payload = json.dumps([line.model_dump() for line in item.lines], ensure_ascii=False)
+    layout = item.layout.model_dump_json()
     with _LOCK, _connect() as conn:
         cur = conn.execute(
             """UPDATE projects
-               SET title=?, artist=?, year=?, source_text=?, lines_json=?, updated_at=datetime('now')
+               SET title=?, artist=?, year=?, source_text=?, layout_json=?, lines_json=?, updated_at=datetime('now')
                WHERE id=?""",
-            (item.title, item.artist, item.year, item.source_text, payload, project_id),
+            (item.title, item.artist, item.year, item.source_text, layout, payload, project_id),
         )
         if cur.rowcount == 0:
             return None
@@ -202,5 +207,6 @@ def delete_project(project_id: int) -> bool:
 def _row_to_project(row: sqlite3.Row) -> ProjectItem:
     data = dict(row)
     lines_raw = json.loads(data.pop("lines_json"))
+    data["layout"] = LayoutSettings.model_validate_json(data.pop("layout_json", "{}") or "{}")
     data["lines"] = [AnnotatedLine(**line) for line in lines_raw]
     return ProjectItem(**data)

@@ -1,4 +1,4 @@
-import type { AnnotatedLine, DocumentMeta, OverrideItem, ProjectItem, ProjectSummary } from "./types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectItem, ProjectSummary } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -20,11 +20,11 @@ export async function annotate(text: string, projectId?: number | null): Promise
   return data.lines;
 }
 
-export async function exportDocx(meta: DocumentMeta, lines: AnnotatedLine[]): Promise<Blob> {
+export async function exportDocx(meta: DocumentMeta, layout: LayoutSettings, lines: AnnotatedLine[]): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/export/docx`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ meta, lines }),
+    body: JSON.stringify({ meta, layout, lines }),
   });
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
   return res.blob();
@@ -82,6 +82,7 @@ export async function saveProject(payload: {
   artist: string;
   year: string;
   source_text: string;
+  layout: LayoutSettings;
   lines: AnnotatedLine[];
 }): Promise<ProjectItem> {
   const res = await fetch(`${API_BASE}/api/projects`, {
@@ -99,6 +100,7 @@ export async function updateProject(
     artist: string;
     year: string;
     source_text: string;
+    layout: LayoutSettings;
     lines: AnnotatedLine[];
   },
 ): Promise<ProjectItem> {

@@ -16,15 +16,24 @@ import {
   updateOverride,
   updateProject,
 } from "@/lib/api";
-import type { AnnotatedLine, DocumentMeta, OverrideItem, ProjectSummary } from "@/lib/types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectSummary } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
 const EMPTY_META: DocumentMeta = { title: "", artist: "", year: "" };
+const DEFAULT_LAYOUT: LayoutSettings = {
+  font_size: 18,
+  line_spacing: 2.5,
+  ruby_scale: 0.55,
+  page_margin: 56,
+  font_family: "gothic",
+  vertical: false,
+};
 const DRAFT_KEY = "furigana-studio:draft:v1";
 
 export default function Home() {
   const [meta, setMeta] = useState<DocumentMeta>(EMPTY_META);
+  const [layout, setLayout] = useState<LayoutSettings>(DEFAULT_LAYOUT);
   const [source, setSource] = useState("");
   const [lines, setLines] = useState<AnnotatedLine[]>([]);
   const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
@@ -37,6 +46,7 @@ export default function Home() {
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<OverrideItem[]>([]);
   const [overridePanel, setOverridePanel] = useState(false);
+  const [layoutPanel, setLayoutPanel] = useState(false);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
@@ -96,12 +106,14 @@ export default function Home() {
         meta?: DocumentMeta;
         source?: string;
         lines?: AnnotatedLine[];
+        layout?: LayoutSettings;
         projectId?: number | null;
       };
       if (draft.source || draft.meta?.title) {
         setMeta(draft.meta || EMPTY_META);
         setSource(draft.source || "");
         setFreshLines(draft.lines || []);
+        setLayout(draft.layout || DEFAULT_LAYOUT);
         setCurrentProjectId(draft.projectId || null);
         flash("已恢复上次未完成的草稿");
       }
@@ -134,11 +146,11 @@ export default function Home() {
       }
       window.localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ meta, source, lines, projectId: currentProjectId }),
+        JSON.stringify({ meta, layout, source, lines, projectId: currentProjectId }),
       );
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [meta, source, lines, currentProjectId]);
+  }, [meta, layout, source, lines, currentProjectId]);
 
   function flash(text: string) {
     setMessage(text);
@@ -304,7 +316,7 @@ export default function Home() {
     if (!lines.length) return flash("请先完成标注");
     setBusy("export");
     try {
-      const blob = await exportDocx(meta, lines);
+      const blob = await exportDocx(meta, layout, lines);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -366,7 +378,7 @@ export default function Home() {
     if (!source.trim() || !lines.length) return flash("请先输入并标注文本");
     setBusy("save");
     try {
-      const payload = { ...meta, source_text: source, lines };
+      const payload = { ...meta, layout, source_text: source, lines };
       const project = currentProjectId
         ? await updateProject(currentProjectId, payload)
         : await saveProject(payload);
@@ -384,6 +396,7 @@ export default function Home() {
     try {
       const project = await getProject(id);
       setMeta({ title: project.title, artist: project.artist, year: project.year });
+      setLayout(project.layout || DEFAULT_LAYOUT);
       setSource(project.source_text);
       setFreshLines(project.lines);
       setCurrentProjectId(project.id);
@@ -403,6 +416,7 @@ export default function Home() {
 
   function reset() {
     setMeta(EMPTY_META);
+    setLayout(DEFAULT_LAYOUT);
     setSource("");
     setFreshLines([]);
     setSelected(null);
@@ -431,6 +445,7 @@ export default function Home() {
           >
             读音规则{overrides.length ? ` (${overrides.length})` : ""}
           </button>
+          <button className="ghostButton" onClick={() => setLayoutPanel((value) => !value)}>排版设置</button>
           <button className="ghostButton" onClick={reset}>新建</button>
           <button className="secondaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
             {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
@@ -567,6 +582,51 @@ export default function Home() {
         </section>
       )}
 
+      {layoutPanel && (
+        <section className="layoutPanel card">
+          <div className="panelTitle">
+            <div>
+              <strong>排版设置</strong>
+              <span>同步应用到预览、PNG、打印和 Word</span>
+            </div>
+            <button className="ghostButton compactButton" onClick={() => setLayout(DEFAULT_LAYOUT)}>恢复默认</button>
+          </div>
+          <div className="layoutGrid">
+            <label>
+              正文字号 <output>{layout.font_size}px</output>
+              <input type="range" min="12" max="32" value={layout.font_size} onChange={(event) => setLayout({ ...layout, font_size: Number(event.target.value) })} />
+            </label>
+            <label>
+              行距 <output>{layout.line_spacing.toFixed(1)}</output>
+              <input type="range" min="1.2" max="4" step="0.1" value={layout.line_spacing} onChange={(event) => setLayout({ ...layout, line_spacing: Number(event.target.value) })} />
+            </label>
+            <label>
+              振假名大小 <output>{Math.round(layout.ruby_scale * 100)}%</output>
+              <input type="range" min="0.35" max="0.9" step="0.05" value={layout.ruby_scale} onChange={(event) => setLayout({ ...layout, ruby_scale: Number(event.target.value) })} />
+            </label>
+            <label>
+              页边距 <output>{layout.page_margin}px</output>
+              <input type="range" min="16" max="96" value={layout.page_margin} onChange={(event) => setLayout({ ...layout, page_margin: Number(event.target.value) })} />
+            </label>
+            <label>
+              字体
+              <select value={layout.font_family} onChange={(event) => setLayout({ ...layout, font_family: event.target.value as LayoutSettings["font_family"] })}>
+                <option value="gothic">日文黑体</option>
+                <option value="mincho">日文明朝体</option>
+                <option value="system">系统字体</option>
+              </select>
+            </label>
+            <label>
+              排列方向
+              <select value={layout.vertical ? "vertical" : "horizontal"} onChange={(event) => setLayout({ ...layout, vertical: event.target.value === "vertical" })}>
+                <option value="horizontal">横排</option>
+                <option value="vertical">竖排</option>
+              </select>
+            </label>
+          </div>
+        </section>
+      )}
+
       <section className="metaGrid card">
         <label>
           标题
@@ -624,6 +684,7 @@ export default function Home() {
           <RubyPreview
             ref={documentSheetRef}
             meta={meta}
+            layout={layout}
             lines={lines}
             selected={selected}
             onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
@@ -646,6 +707,7 @@ export default function Home() {
       </footer>
 
       {message && <div className="toast">{message}</div>}
+      <style>{`@media print { @page { margin: ${(layout.page_margin * 0.32).toFixed(1)}mm; } }`}</style>
     </main>
   );
 }

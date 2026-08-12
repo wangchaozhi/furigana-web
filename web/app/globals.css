@@ -95,13 +95,13 @@ input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(
   width: min(100%, 760px);
   min-height: 980px;
   margin: 0 auto;
-  padding: 52px 56px 64px;
+  padding: var(--doc-margin, 56px);
   background: #fff;
   color: #151515;
   border: 1px solid #e3e3de;
   border-radius: 4px;
   box-shadow: 0 12px 38px rgba(20, 20, 16, .08);
-  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  font-family: var(--doc-font-family, "Yu Gothic", sans-serif);
 }
 .documentHeader {
   padding-bottom: 22px;
@@ -122,9 +122,11 @@ input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(
   line-height: 1.5;
 }
 .documentLyrics { padding-top: 4px; }
-.lyricsLine { min-height: 43px; line-height: 2.5; font-size: 18px; white-space: pre-wrap; }
+.lyricsLine { min-height: 43px; line-height: var(--doc-line-height, 2.5); font-size: var(--doc-font-size, 18px); white-space: pre-wrap; }
 ruby { ruby-position: over; ruby-align: center; }
-rt { font-size: .55em; line-height: 1; user-select: none; }
+rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; }
+.verticalLyrics { writing-mode: vertical-rl; height: 820px; width: 100%; overflow-x: auto; }
+.verticalLyrics .lyricsLine { min-width: 43px; min-height: 0; }
 .segment.editable { border-radius: 4px; transition: background .12s ease; }
 .segment.editable:hover, .segment.selected { background: #efefe9; }
 .emptyState { color: var(--muted); display: grid; place-items: center; min-height: 500px; font-size: 13px; }
@@ -177,6 +179,15 @@ rt { font-size: .55em; line-height: 1; user-select: none; }
 .compactButton { padding: 7px 9px; font-size: 11px; }
 .emptyRule { color: var(--muted); font-size: 12px; padding: 10px 5px; }
 
+.layoutPanel { margin-bottom: 16px; padding: 14px; }
+.layoutPanel .panelTitle { padding: 3px 5px 12px; }
+.layoutPanel .panelTitle > div { display: flex; flex-direction: column; gap: 3px; }
+.layoutPanel .panelTitle span { color: var(--muted); font-size: 11px; }
+.layoutGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 4px; }
+.layoutGrid label { position: relative; padding: 10px; background: #f7f7f4; border: 1px solid #e8e8e2; border-radius: 10px; }
+.layoutGrid output { position: absolute; right: 10px; top: 10px; color: var(--muted); }
+.layoutGrid input[type="range"] { padding: 0; accent-color: #222; }
+
 footer { text-align: center; color: var(--muted); font-size: 11px; padding-top: 20px; }
 footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
 .toast {
@@ -193,6 +204,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .metaGrid label:first-child { grid-column: 1 / -1; }
   .projectList { grid-template-columns: 1fr; }
   .ruleItem { grid-template-columns: minmax(130px, .7fr) minmax(180px, 1.3fr) auto; }
+  .layoutGrid { grid-template-columns: repeat(2, 1fr); }
   .editorCard, .previewCard { min-height: auto; }
 }
 
@@ -203,11 +215,12 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .metaGrid label:first-child { grid-column: auto; }
   .sourceInput { height: 420px; }
   .previewScroll { min-height: 460px; padding: 14px 10px 100px; }
-  .documentSheet { min-height: 760px; padding: 38px 28px 48px; }
+  .documentSheet { min-height: 760px; }
   .documentHeader h3 { font-size: 24px; }
   .lyricsLine { font-size: 17px; }
   .ruleItem { grid-template-columns: 1fr auto; gap: 5px 10px; }
   .ruleContext { grid-column: 1 / -1; grid-row: 2; }
+  .layoutGrid { grid-template-columns: 1fr; }
 }
 
 
@@ -224,6 +237,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .topbar,
   .projectPanel,
   .rulePanel,
+  .layoutPanel,
   .metaGrid,
   .editorCard,
   .previewCard > .cardHead,

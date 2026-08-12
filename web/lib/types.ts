@@ -14,6 +14,15 @@ export type DocumentMeta = {
   year: string;
 };
 
+export type LayoutSettings = {
+  font_size: number;
+  line_spacing: number;
+  ruby_scale: number;
+  page_margin: number;
+  font_family: "gothic" | "mincho" | "system";
+  vertical: boolean;
+};
+
 export type OverrideItem = {
   id: number;
   surface: string;
@@ -35,5 +44,6 @@ export type ProjectSummary = {
 
 export type ProjectItem = ProjectSummary & {
   source_text: string;
+  layout: LayoutSettings;
   lines: AnnotatedLine[];
 };

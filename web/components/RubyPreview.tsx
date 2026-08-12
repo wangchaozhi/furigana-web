@@ -1,19 +1,20 @@
 "use client";
 
-import { forwardRef } from "react";
-import type { AnnotatedLine, DocumentMeta } from "@/lib/types";
+import { forwardRef, type CSSProperties } from "react";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
 type Props = {
   meta: DocumentMeta;
+  layout: LayoutSettings;
   lines: AnnotatedLine[];
   selected: Selection;
   onSelect: (lineIndex: number, segmentIndex: number) => void;
 };
 
 const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
-  { meta, lines, selected, onSelect },
+  { meta, layout, lines, selected, onSelect },
   ref,
 ) {
   if (!lines.length) {
@@ -23,10 +24,22 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
   const byline = [meta.artist.trim() ? `Song by ${meta.artist.trim()}` : "", meta.year.trim()]
     .filter(Boolean)
     .join(" · ");
+  const fonts = {
+    gothic: '"Yu Gothic", "Hiragino Kaku Gothic ProN", sans-serif',
+    mincho: '"Yu Mincho", "Hiragino Mincho ProN", serif',
+    system: 'Inter, ui-sans-serif, system-ui, sans-serif',
+  };
+  const documentStyle = {
+    "--doc-font-size": `${layout.font_size}px`,
+    "--doc-line-height": String(layout.line_spacing),
+    "--doc-ruby-size": `${layout.ruby_scale}em`,
+    "--doc-margin": `${layout.page_margin}px`,
+    "--doc-font-family": fonts[layout.font_family],
+  } as CSSProperties;
 
   return (
     <div className="previewScroll">
-      <article className="documentSheet" ref={ref} id="print-area" aria-label="振假名成品页">
+      <article className="documentSheet" style={documentStyle} ref={ref} id="print-area" aria-label="振假名成品页">
         {(meta.title.trim() || byline) && (
           <header className="documentHeader">
             {meta.title.trim() && <h3>{meta.title}</h3>}
@@ -34,7 +47,7 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
           </header>
         )}
 
-        <div className="documentLyrics">
+        <div className={`documentLyrics ${layout.vertical ? "verticalLyrics" : ""}`}>
           {lines.map((line, lineIndex) => (
             <div className="lyricsLine" key={`${lineIndex}-${line.source}`}>
               {line.segments.length === 0 ? (
