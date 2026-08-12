@@ -14,12 +14,14 @@ import {
   saveOverride,
   saveProject,
   updateOverride,
+  updateProject,
 } from "@/lib/api";
 import type { AnnotatedLine, DocumentMeta, OverrideItem, ProjectSummary } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
 const EMPTY_META: DocumentMeta = { title: "", artist: "", year: "" };
+const DRAFT_KEY = "furigana-studio:draft:v1";
 
 export default function Home() {
   const [meta, setMeta] = useState<DocumentMeta>(EMPTY_META);
@@ -60,7 +62,40 @@ export default function Home() {
   useEffect(() => {
     refreshProjects();
     refreshOverrides();
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as {
+        meta?: DocumentMeta;
+        source?: string;
+        lines?: AnnotatedLine[];
+        projectId?: number | null;
+      };
+      if (draft.source || draft.meta?.title) {
+        setMeta(draft.meta || EMPTY_META);
+        setSource(draft.source || "");
+        setLines(draft.lines || []);
+        setCurrentProjectId(draft.projectId || null);
+        flash("已恢复上次未完成的草稿");
+      }
+    } catch {
+      window.localStorage.removeItem(DRAFT_KEY);
+    }
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!source && !meta.title && !meta.artist && !meta.year && !lines.length) {
+        window.localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      window.localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ meta, source, lines, projectId: currentProjectId }),
+      );
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [meta, source, lines, currentProjectId]);
 
   function flash(text: string) {
     setMessage(text);
@@ -224,10 +259,13 @@ export default function Home() {
     if (!source.trim() || !lines.length) return flash("请先输入并标注文本");
     setBusy("save");
     try {
-      const project = await saveProject({ ...meta, source_text: source, lines });
+      const payload = { ...meta, source_text: source, lines };
+      const project = currentProjectId
+        ? await updateProject(currentProjectId, payload)
+        : await saveProject(payload);
       setCurrentProjectId(project.id);
       await refreshProjects();
-      flash("项目已保存");
+      flash(currentProjectId ? "项目已更新" : "项目已保存");
     } catch (error) {
       flash(`保存失败：${error instanceof Error ? error.message : "未知错误"}`);
     } finally {
@@ -252,6 +290,7 @@ export default function Home() {
 
   async function removeProject(id: number) {
     await deleteProject(id);
+    if (currentProjectId === id) setCurrentProjectId(null);
     await refreshProjects();
   }
 
@@ -261,6 +300,7 @@ export default function Home() {
     setLines([]);
     setSelected(null);
     setCurrentProjectId(null);
+    window.localStorage.removeItem(DRAFT_KEY);
   }
 
   return (
@@ -286,7 +326,7 @@ export default function Home() {
           </button>
           <button className="ghostButton" onClick={reset}>新建</button>
           <button className="secondaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
-            {busy === "save" ? "保存中…" : "保存项目"}
+            {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
           </button>
           <button className="ghostButton" disabled={!lines.length} onClick={handlePrint}>
             打印

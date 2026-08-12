@@ -1,5 +1,5 @@
 from app import db
-from app.models import OverrideCreate, OverrideUpdate
+from app.models import AnnotatedLine, OverrideCreate, OverrideUpdate, ProjectCreate, Segment
 
 
 def test_update_override(tmp_path, monkeypatch):
@@ -29,3 +29,22 @@ def test_rule_scopes_and_precedence(tmp_path, monkeypatch):
 
     assert [item.scope for item in project_rules] == ["sentence", "project", "global"]
     assert [item.scope for item in other_rules] == ["sentence", "global"]
+
+
+def test_update_project_in_place(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "projects.sqlite3")
+    db.init_db()
+    initial = ProjectCreate(
+        title="旧标题",
+        source_text="明日",
+        lines=[AnnotatedLine(source="明日", segments=[Segment(text="明日", ruby="あす")])],
+    )
+    created = db.save_project(initial)
+    changed = initial.model_copy(update={"title": "新标题"})
+
+    updated = db.update_project(created.id, changed)
+
+    assert updated is not None
+    assert updated.id == created.id
+    assert updated.title == "新标题"
+    assert len(db.list_projects()) == 1

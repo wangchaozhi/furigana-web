@@ -164,6 +164,21 @@ def save_project(item: ProjectCreate) -> ProjectItem:
     return _row_to_project(row)
 
 
+def update_project(project_id: int, item: ProjectCreate) -> ProjectItem | None:
+    payload = json.dumps([line.model_dump() for line in item.lines], ensure_ascii=False)
+    with _LOCK, _connect() as conn:
+        cur = conn.execute(
+            """UPDATE projects
+               SET title=?, artist=?, year=?, source_text=?, lines_json=?, updated_at=datetime('now')
+               WHERE id=?""",
+            (item.title, item.artist, item.year, item.source_text, payload, project_id),
+        )
+        if cur.rowcount == 0:
+            return None
+        row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    return _row_to_project(row)
+
+
 def list_projects() -> list[ProjectSummary]:
     with _LOCK, _connect() as conn:
         rows = conn.execute(

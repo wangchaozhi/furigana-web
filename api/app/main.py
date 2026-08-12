@@ -107,6 +107,14 @@ def save_project(payload: ProjectCreate) -> ProjectItem:
     return db.save_project(payload)
 
 
+@app.put("/api/projects/{project_id}", response_model=ProjectItem)
+def update_project(project_id: int, payload: ProjectCreate) -> ProjectItem:
+    project = db.update_project(project_id, payload)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
 @app.get("/api/projects/{project_id}", response_model=ProjectItem)
 def get_project(project_id: int) -> ProjectItem:
     project = db.get_project(project_id)

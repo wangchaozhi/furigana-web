@@ -92,6 +92,24 @@ export async function saveProject(payload: {
   return checked<ProjectItem>(res);
 }
 
+export async function updateProject(
+  id: number,
+  payload: {
+    title: string;
+    artist: string;
+    year: string;
+    source_text: string;
+    lines: AnnotatedLine[];
+  },
+): Promise<ProjectItem> {
+  const res = await fetch(`${API_BASE}/api/projects/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return checked<ProjectItem>(res);
+}
+
 export async function deleteProject(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/projects/${id}`, { method: "DELETE" });
   if (!res.ok && res.status !== 204) throw new Error((await res.text()) || `HTTP ${res.status}`);
