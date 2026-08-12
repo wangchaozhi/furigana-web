@@ -130,6 +130,7 @@ rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; 
 .segment.editable { border-radius: 4px; transition: background .12s ease; }
 .segment.editable:hover, .segment.selected { background: #efefe9; }
 .segment.ambiguous { text-decoration: underline dotted #b08a4a; text-underline-offset: 5px; }
+.documentSheet.exporting .segment.ambiguous { text-decoration: none; }
 .emptyState { color: var(--muted); display: grid; place-items: center; min-height: 500px; font-size: 13px; }
 
 .rubyEditor {
@@ -292,4 +293,5 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .lyricsLine { break-inside: avoid; }
   .segment.editable:hover,
   .segment.selected { background: transparent !important; }
+  .segment.ambiguous { text-decoration: none !important; }
 }

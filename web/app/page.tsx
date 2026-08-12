@@ -356,13 +356,14 @@ export default function Home() {
 
   async function handleDownloadImage() {
     if (!lines.length || !documentSheetRef.current) return flash("请先完成标注");
+    const node = documentSheetRef.current;
     setBusy("image");
     setSelected(null);
     try {
       if (document.fonts?.ready) await document.fonts.ready;
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
       const { toPng } = await import("html-to-image");
-      const node = documentSheetRef.current;
+      node.classList.add("exporting");
       const dataUrl = await toPng(node, {
         cacheBust: true,
         pixelRatio: 2,
@@ -378,6 +379,7 @@ export default function Home() {
     } catch (error) {
       flash(`图片生成失败：${error instanceof Error ? error.message : "未知错误"}`);
     } finally {
+      node.classList.remove("exporting");
       setBusy(null);
     }
   }

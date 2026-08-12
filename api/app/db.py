@@ -201,6 +201,8 @@ def get_project(project_id: int) -> ProjectItem | None:
 def delete_project(project_id: int) -> bool:
     with _LOCK, _connect() as conn:
         cur = conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
+        if cur.rowcount:
+            conn.execute("DELETE FROM ruby_overrides WHERE scope='project' AND project_id=?", (project_id,))
         return cur.rowcount > 0
 
 

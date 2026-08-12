@@ -48,3 +48,40 @@ def test_update_project_in_place(tmp_path, monkeypatch):
     assert updated.id == created.id
     assert updated.title == "新标题"
     assert len(db.list_projects()) == 1
+
+
+def test_delete_project_removes_its_scoped_rules(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "delete.sqlite3")
+    db.init_db()
+    project = db.save_project(ProjectCreate(title="测试", source_text="明日", lines=[]))
+    db.upsert_override(
+        OverrideCreate(surface="明日", reading="あした", scope="project", project_id=project.id)
+    )
+
+    assert db.delete_project(project.id)
+    assert db.list_overrides() == []
+
+
+def test_migrates_legacy_rules_to_scopes(tmp_path, monkeypatch):
+    database = tmp_path / "legacy.sqlite3"
+    monkeypatch.setattr(db, "_DB_PATH", database)
+    with db._connect() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE ruby_overrides (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                surface TEXT NOT NULL,
+                context TEXT NOT NULL DEFAULT '',
+                reading TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(surface, context)
+            );
+            INSERT INTO ruby_overrides(surface, context, reading)
+            VALUES ('明日', 'でも明日', 'あした'), ('今日', '', 'きょう');
+            """
+        )
+
+    db.init_db()
+
+    rules = db.list_overrides()
+    assert {(item.surface, item.scope) for item in rules} == {("明日", "sentence"), ("今日", "global")}
