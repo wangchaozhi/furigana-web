@@ -129,6 +129,7 @@ rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; 
 .verticalLyrics .lyricsLine { min-width: 43px; min-height: 0; }
 .segment.editable { border-radius: 4px; transition: background .12s ease; }
 .segment.editable:hover, .segment.selected { background: #efefe9; }
+.segment.ambiguous { text-decoration: underline dotted #b08a4a; text-underline-offset: 5px; }
 .emptyState { color: var(--muted); display: grid; place-items: center; min-height: 500px; font-size: 13px; }
 
 .rubyEditor {
@@ -144,6 +145,15 @@ rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; 
 .contextBox select { width: 100%; margin-bottom: 7px; }
 .contextBox code { font-family: "Yu Gothic", monospace; font-size: 11px; white-space: pre-wrap; }
 .helpText { margin: 9px 2px 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.candidateBox { margin: 10px 0; padding: 9px; background: #fff8e9; border: 1px solid #ead9b8; border-radius: 9px; }
+.candidateHead { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 10px; }
+.confidence { padding: 2px 6px; border-radius: 999px; }
+.confidence.high { color: #2f7042; background: #dfeee3; }
+.confidence.medium { color: #8a641f; background: #f4e6c5; }
+.confidence.low { color: #914c4c; background: #f3dddd; }
+.candidateList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.candidate { border: 1px solid #dcc89f; border-radius: 8px; background: white; padding: 6px 9px; font-size: 12px; }
+.candidate.active { border-color: #222; background: #222; color: white; }
 
 .projectPanel { margin-bottom: 16px; background: #191919; color: white; border-radius: 16px; padding: 14px; box-shadow: var(--shadow); }
 .panelTitle { display: flex; justify-content: space-between; align-items: center; padding: 3px 5px 12px; }

@@ -59,6 +59,30 @@ export default function RubyEditor({ lines, selected, projectId, onChange, onSav
           placeholder="例如：あした"
         />
       </label>
+      {(segment.candidates?.length || 0) > 1 && (
+        <div className="candidateBox">
+          <div className="candidateHead">
+            <span>词典候选</span>
+            <span className={`confidence ${segment.confidence || "low"}`}>
+              {segment.confidence === "high" ? "高可信" : segment.confidence === "medium" ? "有多种读法" : "请人工确认"}
+            </span>
+          </div>
+          <div className="candidateList">
+            {segment.candidates?.map((candidate) => (
+              <button
+                className={candidate === value ? "candidate active" : "candidate"}
+                key={candidate}
+                onClick={() => {
+                  setValue(candidate);
+                  onChange(candidate);
+                }}
+              >
+                {candidate}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="contextBox">
         <span>规则作用范围</span>
         <select value={scope} onChange={(event) => setScope(event.target.value as OverrideItem["scope"])}>

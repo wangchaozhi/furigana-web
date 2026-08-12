@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 class Segment(BaseModel):
     text: str
     ruby: Optional[str] = None
+    candidates: list[str] = Field(default_factory=list)
+    confidence: Optional[Literal["high", "medium", "low"]] = None
 
 
 class AnnotatedLine(BaseModel):

@@ -56,14 +56,14 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
                 line.segments.map((segment, segmentIndex) => {
                   const isSelected =
                     selected?.lineIndex === lineIndex && selected?.segmentIndex === segmentIndex;
-                  const className = `segment ${segment.ruby ? "editable" : ""} ${isSelected ? "selected" : ""}`;
+                  const className = `segment ${segment.ruby ? "editable" : ""} ${(segment.candidates?.length || 0) > 1 ? "ambiguous" : ""} ${isSelected ? "selected" : ""}`;
 
                   return segment.ruby ? (
                     <ruby
                       className={className}
                       key={`${lineIndex}-${segmentIndex}`}
                       onClick={() => onSelect(lineIndex, segmentIndex)}
-                      title="点击修改读音"
+                      title={(segment.candidates?.length || 0) > 1 ? `候选：${segment.candidates?.join(" / ")}` : "点击修改读音"}
                     >
                       {segment.text}
                       <rt>{segment.ruby}</rt>

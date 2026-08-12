@@ -1,6 +1,8 @@
 export type Segment = {
   text: string;
   ruby?: string | null;
+  candidates?: string[];
+  confidence?: "high" | "medium" | "low" | null;
 };
 
 export type AnnotatedLine = {

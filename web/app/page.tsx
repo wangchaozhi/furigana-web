@@ -182,7 +182,14 @@ export default function Home() {
               segments: line.segments.map((segment, segmentIndex) =>
                 segmentIndex !== selected.segmentIndex
                   ? segment
-                  : { ...segment, ruby: reading || null },
+                  : {
+                      ...segment,
+                      ruby: reading || null,
+                      candidates: reading
+                        ? [reading, ...(segment.candidates || []).filter((item) => item !== reading)]
+                        : segment.candidates,
+                      confidence: reading ? "high" : segment.confidence,
+                    },
               ),
             },
       );
@@ -205,7 +212,14 @@ export default function Home() {
           : {
               ...line,
               segments: line.segments.map((segment) =>
-                segment.text === surface ? { ...segment, ruby: normalizedReading } : segment,
+                segment.text === surface
+                  ? {
+                      ...segment,
+                      ruby: normalizedReading,
+                      candidates: [normalizedReading, ...(segment.candidates || []).filter((item) => item !== normalizedReading)],
+                      confidence: "high",
+                    }
+                  : segment,
               ),
             },
       ),
