@@ -76,6 +76,7 @@ input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(
 .cardHead h2 { margin: 2px 0 0; font-size: 17px; }
 .eyebrow { color: #8b8b84; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
 .hintPill { background: var(--soft); color: #696963; padding: 6px 9px; border-radius: 999px; font-size: 11px; }
+.reviewActions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 
 .sourceInput {
   display: block; width: calc(100% - 36px); height: 540px; margin: 18px; resize: vertical;

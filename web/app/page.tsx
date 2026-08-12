@@ -27,6 +27,8 @@ export default function Home() {
   const [meta, setMeta] = useState<DocumentMeta>(EMPTY_META);
   const [source, setSource] = useState("");
   const [lines, setLines] = useState<AnnotatedLine[]>([]);
+  const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
+  const [futureLines, setFutureLines] = useState<AnnotatedLine[][]>([]);
   const [selected, setSelected] = useState<Selection>(null);
   const [busy, setBusy] = useState<"annotate" | "export" | "image" | "save" | null>(null);
   const [message, setMessage] = useState("");
@@ -42,6 +44,30 @@ export default function Home() {
     if (!selected) return null;
     return lines[selected.lineIndex]?.segments[selected.segmentIndex] || null;
   }, [lines, selected]);
+
+  function setFreshLines(next: AnnotatedLine[]) {
+    setLines(next);
+    setPastLines([]);
+    setFutureLines([]);
+  }
+
+  function undoRubyEdit() {
+    if (!pastLines.length) return;
+    const previous = pastLines[pastLines.length - 1];
+    setPastLines(pastLines.slice(0, -1));
+    setFutureLines((future) => [lines, ...future].slice(0, 50));
+    setLines(previous);
+    setSelected(null);
+  }
+
+  function redoRubyEdit() {
+    if (!futureLines.length) return;
+    const next = futureLines[0];
+    setFutureLines(futureLines.slice(1));
+    setPastLines((past) => [...past.slice(-49), lines]);
+    setLines(next);
+    setSelected(null);
+  }
 
   async function refreshProjects() {
     try {
@@ -74,7 +100,7 @@ export default function Home() {
       if (draft.source || draft.meta?.title) {
         setMeta(draft.meta || EMPTY_META);
         setSource(draft.source || "");
-        setLines(draft.lines || []);
+        setFreshLines(draft.lines || []);
         setCurrentProjectId(draft.projectId || null);
         flash("已恢复上次未完成的草稿");
       }
@@ -82,6 +108,22 @@ export default function Home() {
       window.localStorage.removeItem(DRAFT_KEY);
     }
   }, []);
+
+  useEffect(() => {
+    function handleHistoryShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey && pastLines.length) {
+        event.preventDefault();
+        undoRubyEdit();
+      } else if ((key === "y" || (key === "z" && event.shiftKey)) && futureLines.length) {
+        event.preventDefault();
+        redoRubyEdit();
+      }
+    }
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  }, [pastLines, futureLines, lines]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -107,7 +149,7 @@ export default function Home() {
     setBusy("annotate");
     setSelected(null);
     try {
-      setLines(await annotate(source, currentProjectId));
+      setFreshLines(await annotate(source, currentProjectId));
       flash("标注完成");
     } catch (error) {
       flash(`标注失败：${error instanceof Error ? error.message : "未知错误"}`);
@@ -118,8 +160,8 @@ export default function Home() {
 
   function updateSelectedRuby(reading: string) {
     if (!selected) return;
-    setLines((old) =>
-      old.map((line, lineIndex) =>
+    if (selectedSegment?.ruby === (reading || null)) return;
+    const next = lines.map((line, lineIndex) =>
         lineIndex !== selected.lineIndex
           ? line
           : {
@@ -130,8 +172,10 @@ export default function Home() {
                   : { ...segment, ruby: reading || null },
               ),
             },
-      ),
-    );
+      );
+    setPastLines((past) => [...past.slice(-49), lines]);
+    setFutureLines([]);
+    setLines(next);
   }
 
   async function handleSaveOverride(context: string, reading: string, scope: OverrideItem["scope"]) {
@@ -141,8 +185,8 @@ export default function Home() {
     await saveOverride(surface, normalizedReading, context, scope, currentProjectId);
 
     // Keep all matching occurrences in the current preview in sync immediately.
-    setLines((old) =>
-      old.map((line) =>
+    setFreshLines(
+      lines.map((line) =>
         scope === "sentence" && context && !line.source.includes(context)
           ? line
           : {
@@ -162,7 +206,7 @@ export default function Home() {
       await deleteOverride(id);
       await refreshOverrides();
       if (source.trim() && lines.length) {
-        setLines(await annotate(source, currentProjectId));
+        setFreshLines(await annotate(source, currentProjectId));
         setSelected(null);
       }
       flash("规则已删除，当前预览已更新");
@@ -184,7 +228,7 @@ export default function Home() {
       setEditingOverride(null);
       await refreshOverrides();
       if (source.trim() && lines.length) {
-        setLines(await annotate(source, currentProjectId));
+        setFreshLines(await annotate(source, currentProjectId));
         setSelected(null);
       }
       flash("规则已修改，当前预览已更新");
@@ -278,7 +322,7 @@ export default function Home() {
       const project = await getProject(id);
       setMeta({ title: project.title, artist: project.artist, year: project.year });
       setSource(project.source_text);
-      setLines(project.lines);
+      setFreshLines(project.lines);
       setCurrentProjectId(project.id);
       setSelected(null);
       setProjectPanel(false);
@@ -297,7 +341,7 @@ export default function Home() {
   function reset() {
     setMeta(EMPTY_META);
     setSource("");
-    setLines([]);
+    setFreshLines([]);
     setSelected(null);
     setCurrentProjectId(null);
     window.localStorage.removeItem(DRAFT_KEY);
@@ -481,7 +525,7 @@ export default function Home() {
             onChange={(e) => {
               setSource(e.target.value);
               if (lines.length) {
-                setLines([]);
+                setFreshLines([]);
                 setSelected(null);
               }
             }}
@@ -497,7 +541,11 @@ export default function Home() {
               <span className="eyebrow">02 / REVIEW</span>
               <h2>振假名预览</h2>
             </div>
-            <span className="hintPill">点击振假名可修改</span>
+            <div className="reviewActions">
+              <button className="ghostButton compactButton" disabled={!pastLines.length} onClick={undoRubyEdit}>撤销</button>
+              <button className="ghostButton compactButton" disabled={!futureLines.length} onClick={redoRubyEdit}>重做</button>
+              <span className="hintPill">点击振假名可修改</span>
+            </div>
           </div>
           <RubyPreview
             ref={documentSheetRef}
