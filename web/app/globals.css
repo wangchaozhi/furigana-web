@@ -163,6 +163,11 @@ rt { font-size: .55em; line-height: 1; user-select: none; }
 .ruleReading span { color: var(--muted); }
 .ruleReading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ruleContext { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ruleEditFields { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }
+.ruleEditFields input, .ruleContextInput { min-width: 0; padding: 7px 8px; font-size: 12px; }
+.ruleEditFields span { color: var(--muted); }
+.ruleActions { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+.compactButton { padding: 7px 9px; font-size: 11px; }
 .emptyRule { color: var(--muted); font-size: 12px; padding: 10px 5px; }
 
 footer { text-align: center; color: var(--muted); font-size: 11px; padding-top: 20px; }

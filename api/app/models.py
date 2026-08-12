@@ -44,6 +44,10 @@ class OverrideItem(OverrideCreate):
     created_at: str
 
 
+class OverrideUpdate(OverrideCreate):
+    pass
+
+
 class ProjectCreate(BaseModel):
     title: str = ""
     artist: str = ""

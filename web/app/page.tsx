@@ -13,6 +13,7 @@ import {
   listProjects,
   saveOverride,
   saveProject,
+  updateOverride,
 } from "@/lib/api";
 import type { AnnotatedLine, DocumentMeta, OverrideItem, ProjectSummary } from "@/lib/types";
 
@@ -31,6 +32,7 @@ export default function Home() {
   const [projectPanel, setProjectPanel] = useState(false);
   const [overrides, setOverrides] = useState<OverrideItem[]>([]);
   const [overridePanel, setOverridePanel] = useState(false);
+  const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
 
   const selectedSegment = useMemo(() => {
@@ -130,6 +132,26 @@ export default function Home() {
       flash("规则已删除，当前预览已更新");
     } catch (error) {
       flash(`删除失败：${error instanceof Error ? error.message : "未知错误"}`);
+    }
+  }
+
+  async function commitOverrideEdit() {
+    if (!editingOverride?.surface.trim() || !editingOverride.reading.trim()) return;
+    try {
+      await updateOverride(editingOverride.id, {
+        surface: editingOverride.surface.trim(),
+        reading: editingOverride.reading.trim(),
+        context: editingOverride.context.trim(),
+      });
+      setEditingOverride(null);
+      await refreshOverrides();
+      if (source.trim() && lines.length) {
+        setLines(await annotate(source));
+        setSelected(null);
+      }
+      flash("规则已修改，当前预览已更新");
+    } catch (error) {
+      flash(`修改失败：${error instanceof Error ? error.message : "未知错误"}`);
     }
   }
 
@@ -311,15 +333,49 @@ export default function Home() {
             <div className="ruleList">
               {overrides.map((item) => (
                 <div className="ruleItem" key={item.id}>
-                  <div className="ruleReading">
-                    <strong>{item.surface}</strong>
-                    <span>→</span>
-                    <strong>{item.reading}</strong>
-                  </div>
-                  <div className="ruleContext" title={item.context || "所有上下文"}>
-                    {item.context || "所有上下文"}
-                  </div>
-                  <button className="deleteButton" onClick={() => removeOverride(item.id)}>删除</button>
+                  {editingOverride?.id === item.id ? (
+                    <>
+                      <div className="ruleEditFields">
+                        <input
+                          aria-label="规则文字"
+                          value={editingOverride.surface}
+                          onChange={(event) => setEditingOverride({ ...editingOverride, surface: event.target.value })}
+                        />
+                        <span>→</span>
+                        <input
+                          aria-label="规则读音"
+                          value={editingOverride.reading}
+                          onChange={(event) => setEditingOverride({ ...editingOverride, reading: event.target.value })}
+                        />
+                      </div>
+                      <input
+                        className="ruleContextInput"
+                        aria-label="规则上下文"
+                        value={editingOverride.context}
+                        onChange={(event) => setEditingOverride({ ...editingOverride, context: event.target.value })}
+                        placeholder="所有上下文"
+                      />
+                      <div className="ruleActions">
+                        <button className="secondaryButton compactButton" onClick={commitOverrideEdit}>保存</button>
+                        <button className="ghostButton compactButton" onClick={() => setEditingOverride(null)}>取消</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="ruleReading">
+                        <strong>{item.surface}</strong>
+                        <span>→</span>
+                        <strong>{item.reading}</strong>
+                      </div>
+                      <div className="ruleContext" title={item.context || "所有上下文"}>
+                        {item.context || "所有上下文"}
+                      </div>
+                      <div className="ruleActions">
+                        <button className="ghostButton compactButton" onClick={() => setEditingOverride(item)}>编辑</button>
+                        <button className="deleteButton" onClick={() => removeOverride(item.id)}>删除</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

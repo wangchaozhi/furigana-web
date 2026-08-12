@@ -49,6 +49,18 @@ export async function deleteOverride(id: number): Promise<void> {
   if (!res.ok && res.status !== 204) throw new Error((await res.text()) || `HTTP ${res.status}`);
 }
 
+export async function updateOverride(
+  id: number,
+  payload: Pick<OverrideItem, "surface" | "reading" | "context">,
+): Promise<OverrideItem> {
+  const res = await fetch(`${API_BASE}/api/overrides/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return checked<OverrideItem>(res);
+}
+
 export async function listProjects(): Promise<ProjectSummary[]> {
   const res = await fetch(`${API_BASE}/api/projects`, { cache: "no-store" });
   return checked<ProjectSummary[]>(res);

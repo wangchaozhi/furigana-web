@@ -18,6 +18,7 @@ from .models import (
     ExportDocxRequest,
     OverrideCreate,
     OverrideItem,
+    OverrideUpdate,
     ProjectCreate,
     ProjectItem,
     ProjectSummary,
@@ -83,6 +84,17 @@ def remove_override(override_id: int) -> Response:
     if not db.delete_override(override_id):
         raise HTTPException(status_code=404, detail="Override not found")
     return Response(status_code=204)
+
+
+@app.put("/api/overrides/{override_id}", response_model=OverrideItem)
+def edit_override(override_id: int, payload: OverrideUpdate) -> OverrideItem:
+    try:
+        item = db.update_override(override_id, payload)
+    except Exception as error:
+        raise HTTPException(status_code=409, detail="A rule already exists for this text and context") from error
+    if item is None:
+        raise HTTPException(status_code=404, detail="Override not found")
+    return item
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])

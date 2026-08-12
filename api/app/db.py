@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import Iterable
 
-from .models import AnnotatedLine, OverrideCreate, OverrideItem, ProjectCreate, ProjectItem, ProjectSummary
+from .models import AnnotatedLine, OverrideCreate, OverrideItem, OverrideUpdate, ProjectCreate, ProjectItem, ProjectSummary
 
 _DB_PATH = Path(os.getenv("DB_PATH", "/data/furigana.sqlite3"))
 _LOCK = threading.RLock()
@@ -78,6 +78,21 @@ def delete_override(override_id: int) -> bool:
     with _LOCK, _connect() as conn:
         cur = conn.execute("DELETE FROM ruby_overrides WHERE id=?", (override_id,))
         return cur.rowcount > 0
+
+
+def update_override(override_id: int, item: OverrideUpdate) -> OverrideItem | None:
+    with _LOCK, _connect() as conn:
+        cur = conn.execute(
+            "UPDATE ruby_overrides SET surface=?, context=?, reading=? WHERE id=?",
+            (item.surface, item.context, item.reading, override_id),
+        )
+        if cur.rowcount == 0:
+            return None
+        row = conn.execute(
+            "SELECT id, surface, context, reading, created_at FROM ruby_overrides WHERE id=?",
+            (override_id,),
+        ).fetchone()
+    return OverrideItem(**dict(row))
 
 
 def save_project(item: ProjectCreate) -> ProjectItem:
