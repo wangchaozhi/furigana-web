@@ -1,0 +1,21 @@
+services:
+  api:
+    image: ghcr.io/wangchaozhi/furigana-web-api:${FURIGANA_VERSION:-latest}
+    environment:
+      DB_PATH: /data/furigana.sqlite3
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - ./data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/wangchaozhi/furigana-web-web:${FURIGANA_VERSION:-latest}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
