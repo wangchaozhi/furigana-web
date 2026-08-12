@@ -10,11 +10,11 @@ async function checked<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function annotate(text: string): Promise<AnnotatedLine[]> {
+export async function annotate(text: string, projectId?: number | null): Promise<AnnotatedLine[]> {
   const res = await fetch(`${API_BASE}/api/annotate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, project_id: projectId || null }),
   });
   const data = await checked<{ lines: AnnotatedLine[] }>(res);
   return data.lines;
@@ -30,11 +30,17 @@ export async function exportDocx(meta: DocumentMeta, lines: AnnotatedLine[]): Pr
   return res.blob();
 }
 
-export async function saveOverride(surface: string, reading: string, context: string): Promise<OverrideItem> {
+export async function saveOverride(
+  surface: string,
+  reading: string,
+  context: string,
+  scope: OverrideItem["scope"] = "sentence",
+  projectId?: number | null,
+): Promise<OverrideItem> {
   const res = await fetch(`${API_BASE}/api/overrides`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ surface, reading, context }),
+    body: JSON.stringify({ surface, reading, context, scope, project_id: projectId || null }),
   });
   return checked<OverrideItem>(res);
 }
@@ -51,7 +57,7 @@ export async function deleteOverride(id: number): Promise<void> {
 
 export async function updateOverride(
   id: number,
-  payload: Pick<OverrideItem, "surface" | "reading" | "context">,
+  payload: Pick<OverrideItem, "surface" | "reading" | "context" | "scope" | "project_id">,
 ): Promise<OverrideItem> {
   const res = await fetch(`${API_BASE}/api/overrides/${id}`, {
     method: "PUT",

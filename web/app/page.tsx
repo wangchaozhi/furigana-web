@@ -30,6 +30,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectPanel, setProjectPanel] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<OverrideItem[]>([]);
   const [overridePanel, setOverridePanel] = useState(false);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
@@ -71,7 +72,7 @@ export default function Home() {
     setBusy("annotate");
     setSelected(null);
     try {
-      setLines(await annotate(source));
+      setLines(await annotate(source, currentProjectId));
       flash("标注完成");
     } catch (error) {
       flash(`标注失败：${error instanceof Error ? error.message : "未知错误"}`);
@@ -98,16 +99,16 @@ export default function Home() {
     );
   }
 
-  async function handleSaveOverride(context: string, reading: string) {
+  async function handleSaveOverride(context: string, reading: string, scope: OverrideItem["scope"]) {
     if (!selected || !selectedSegment?.text || !reading) return;
     const surface = selectedSegment.text;
     const normalizedReading = reading.trim();
-    await saveOverride(surface, normalizedReading, context);
+    await saveOverride(surface, normalizedReading, context, scope, currentProjectId);
 
     // Keep all matching occurrences in the current preview in sync immediately.
     setLines((old) =>
       old.map((line) =>
-        context && !line.source.includes(context)
+        scope === "sentence" && context && !line.source.includes(context)
           ? line
           : {
               ...line,
@@ -126,7 +127,7 @@ export default function Home() {
       await deleteOverride(id);
       await refreshOverrides();
       if (source.trim() && lines.length) {
-        setLines(await annotate(source));
+        setLines(await annotate(source, currentProjectId));
         setSelected(null);
       }
       flash("规则已删除，当前预览已更新");
@@ -142,11 +143,13 @@ export default function Home() {
         surface: editingOverride.surface.trim(),
         reading: editingOverride.reading.trim(),
         context: editingOverride.context.trim(),
+        scope: editingOverride.scope,
+        project_id: editingOverride.scope === "project" ? editingOverride.project_id : null,
       });
       setEditingOverride(null);
       await refreshOverrides();
       if (source.trim() && lines.length) {
-        setLines(await annotate(source));
+        setLines(await annotate(source, currentProjectId));
         setSelected(null);
       }
       flash("规则已修改，当前预览已更新");
@@ -221,7 +224,8 @@ export default function Home() {
     if (!source.trim() || !lines.length) return flash("请先输入并标注文本");
     setBusy("save");
     try {
-      await saveProject({ ...meta, source_text: source, lines });
+      const project = await saveProject({ ...meta, source_text: source, lines });
+      setCurrentProjectId(project.id);
       await refreshProjects();
       flash("项目已保存");
     } catch (error) {
@@ -237,6 +241,7 @@ export default function Home() {
       setMeta({ title: project.title, artist: project.artist, year: project.year });
       setSource(project.source_text);
       setLines(project.lines);
+      setCurrentProjectId(project.id);
       setSelected(null);
       setProjectPanel(false);
       flash("项目已载入");
@@ -255,6 +260,7 @@ export default function Home() {
     setSource("");
     setLines([]);
     setSelected(null);
+    setCurrentProjectId(null);
   }
 
   return (
@@ -355,6 +361,23 @@ export default function Home() {
                         onChange={(event) => setEditingOverride({ ...editingOverride, context: event.target.value })}
                         placeholder="所有上下文"
                       />
+                      <select
+                        className="ruleScopeSelect"
+                        aria-label="规则作用范围"
+                        value={editingOverride.scope}
+                        onChange={(event) => {
+                          const scope = event.target.value as OverrideItem["scope"];
+                          setEditingOverride({
+                            ...editingOverride,
+                            scope,
+                            project_id: scope === "project" ? (editingOverride.project_id || currentProjectId) : null,
+                          });
+                        }}
+                      >
+                        <option value="sentence">仅当前句</option>
+                        <option value="project" disabled={!editingOverride.project_id && !currentProjectId}>当前项目</option>
+                        <option value="global">所有项目</option>
+                      </select>
                       <div className="ruleActions">
                         <button className="secondaryButton compactButton" onClick={commitOverrideEdit}>保存</button>
                         <button className="ghostButton compactButton" onClick={() => setEditingOverride(null)}>取消</button>
@@ -368,7 +391,10 @@ export default function Home() {
                         <strong>{item.reading}</strong>
                       </div>
                       <div className="ruleContext" title={item.context || "所有上下文"}>
-                        {item.context || "所有上下文"}
+                        <span className="scopeBadge">
+                          {item.scope === "sentence" ? "当前句" : item.scope === "project" ? `项目 #${item.project_id}` : "全局"}
+                        </span>
+                        {item.scope === "sentence" ? item.context : item.scope === "project" ? "当前项目内生效" : "所有项目生效"}
                       </div>
                       <div className="ruleActions">
                         <button className="ghostButton compactButton" onClick={() => setEditingOverride(item)}>编辑</button>
@@ -444,6 +470,7 @@ export default function Home() {
             <RubyEditor
               lines={lines}
               selected={selected}
+              projectId={currentProjectId}
               onChange={updateSelectedRuby}
               onSaveOverride={handleSaveOverride}
               onClose={() => setSelected(null)}

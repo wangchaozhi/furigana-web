@@ -19,6 +19,8 @@ export type OverrideItem = {
   surface: string;
   reading: string;
   context: string;
+  scope: "sentence" | "project" | "global";
+  project_id?: number | null;
   created_at: string;
 };
 

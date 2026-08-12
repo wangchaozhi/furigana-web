@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -16,6 +16,7 @@ class AnnotatedLine(BaseModel):
 
 class AnnotateRequest(BaseModel):
     text: str
+    project_id: Optional[int] = None
 
 
 class AnnotateResponse(BaseModel):
@@ -37,6 +38,8 @@ class OverrideCreate(BaseModel):
     surface: str = Field(min_length=1)
     reading: str = Field(min_length=1)
     context: str = ""
+    scope: Literal["sentence", "project", "global"] = "sentence"
+    project_id: Optional[int] = None
 
 
 class OverrideItem(OverrideCreate):

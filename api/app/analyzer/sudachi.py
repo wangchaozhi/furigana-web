@@ -19,13 +19,14 @@ class SudachiAnnotator:
         for item in overrides:
             by_surface[item.surface].append(item)
         for items in by_surface.values():
-            items.sort(key=lambda x: len(x.context), reverse=True)
+            priority = {"sentence": 0, "project": 1, "global": 2}
+            items.sort(key=lambda x: (priority[x.scope], -len(x.context)))
         return by_surface
 
     @staticmethod
     def _find_override(surface: str, line: str, mapping: dict[str, list[OverrideItem]]) -> str | None:
         for item in mapping.get(surface, []):
-            if not item.context or item.context in line:
+            if item.scope != "sentence" or item.context in line:
                 return normalize_reading(item.reading)
         return None
 

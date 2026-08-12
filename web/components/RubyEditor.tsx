@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AnnotatedLine } from "@/lib/types";
+import type { AnnotatedLine, OverrideItem } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
@@ -9,15 +9,17 @@ type Props = {
   lines: AnnotatedLine[];
   selected: Selection;
   onChange: (reading: string) => void;
-  onSaveOverride: (context: string, reading: string) => Promise<void>;
+  projectId: number | null;
+  onSaveOverride: (context: string, reading: string, scope: OverrideItem["scope"]) => Promise<void>;
   onClose: () => void;
 };
 
-export default function RubyEditor({ lines, selected, onChange, onSaveOverride, onClose }: Props) {
+export default function RubyEditor({ lines, selected, projectId, onChange, onSaveOverride, onClose }: Props) {
   const segment = selected ? lines[selected.lineIndex]?.segments[selected.segmentIndex] : undefined;
   const line = selected ? lines[selected.lineIndex] : undefined;
   const [value, setValue] = useState(segment?.ruby || "");
   const [saving, setSaving] = useState(false);
+  const [scope, setScope] = useState<OverrideItem["scope"]>("sentence");
 
   useEffect(() => {
     setValue(segment?.ruby || "");
@@ -30,7 +32,7 @@ export default function RubyEditor({ lines, selected, onChange, onSaveOverride, 
     setSaving(true);
     try {
       onChange(value.trim());
-      await onSaveOverride(context, value.trim());
+      await onSaveOverride(context, value.trim(), scope);
     } finally {
       setSaving(false);
     }
@@ -58,11 +60,16 @@ export default function RubyEditor({ lines, selected, onChange, onSaveOverride, 
         />
       </label>
       <div className="contextBox">
-        <span>上下文规则</span>
-        <code>{context || "（空行）"}</code>
+        <span>规则作用范围</span>
+        <select value={scope} onChange={(event) => setScope(event.target.value as OverrideItem["scope"])}>
+          <option value="sentence">仅当前句</option>
+          <option value="project" disabled={!projectId}>当前项目{projectId ? "" : "（请先保存项目）"}</option>
+          <option value="global">所有项目</option>
+        </select>
+        {scope === "sentence" && <code>{context || "（空行）"}</code>}
       </div>
       <button className="secondaryButton full" disabled={!value.trim() || saving} onClick={saveAsRule}>
-        {saving ? "保存中…" : "保存为该句读音规则"}
+        {saving ? "保存中…" : "保存读音规则"}
       </button>
       <p className="helpText">保存后会立即同步当前预览中的相同上下文，以后标注时也会优先使用这个读音。</p>
     </div>

@@ -51,7 +51,7 @@ def health() -> dict[str, str]:
 
 @app.post("/api/annotate", response_model=AnnotateResponse)
 def annotate(payload: AnnotateRequest) -> AnnotateResponse:
-    overrides = db.list_overrides()
+    overrides = db.list_applicable_overrides(payload.project_id)
     lines = app.state.annotator.annotate(payload.text, overrides)
     return AnnotateResponse(lines=lines)
 
