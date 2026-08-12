@@ -156,6 +156,8 @@ rt { font-size: .55em; line-height: 1; user-select: none; }
 .rulePanelTitle { padding: 3px 5px 12px; }
 .rulePanelTitle > div { display: flex; flex-direction: column; gap: 3px; }
 .rulePanelTitle > div span { color: var(--muted); font-size: 11px; }
+.rulePanelTitle .rulePanelTools { flex-direction: row; align-items: center; gap: 6px; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .ruleList { display: grid; gap: 7px; max-height: 280px; overflow: auto; }
 .ruleItem {
   display: grid; grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.8fr) auto;

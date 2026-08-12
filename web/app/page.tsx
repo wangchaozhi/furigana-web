@@ -39,6 +39,7 @@ export default function Home() {
   const [overridePanel, setOverridePanel] = useState(false);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
+  const ruleImportRef = useRef<HTMLInputElement>(null);
 
   const selectedSegment = useMemo(() => {
     if (!selected) return null;
@@ -237,6 +238,68 @@ export default function Home() {
     }
   }
 
+  function exportRules() {
+    const payload = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      rules: overrides.map(({ surface, reading, context, scope }) => ({ surface, reading, context, scope })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `furigana-rules-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    flash(`已导出 ${overrides.length} 条规则`);
+  }
+
+  async function importRules(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text()) as { version?: unknown; rules?: unknown };
+      if (data.version !== 1 || !Array.isArray(data.rules) || data.rules.length > 5000) {
+        throw new Error("文件版本不支持或规则数量超过 5000 条");
+      }
+      let imported = 0;
+      let skipped = 0;
+      for (const raw of data.rules) {
+        if (!raw || typeof raw !== "object") throw new Error("规则格式不正确");
+        const rule = raw as Record<string, unknown>;
+        const scope = rule.scope;
+        if (
+          typeof rule.surface !== "string" || !rule.surface.trim() ||
+          typeof rule.reading !== "string" || !rule.reading.trim() ||
+          typeof rule.context !== "string" ||
+          (scope !== "sentence" && scope !== "project" && scope !== "global")
+        ) {
+          throw new Error("规则包含无效字段");
+        }
+        if (scope === "project" && !currentProjectId) {
+          skipped += 1;
+          continue;
+        }
+        await saveOverride(
+          rule.surface.trim(),
+          rule.reading.trim(),
+          rule.context,
+          scope,
+          scope === "project" ? currentProjectId : null,
+        );
+        imported += 1;
+      }
+      await refreshOverrides();
+      if (source.trim() && lines.length) setFreshLines(await annotate(source, currentProjectId));
+      flash(`已导入 ${imported} 条规则${skipped ? `，跳过 ${skipped} 条项目规则` : ""}`);
+    } catch (error) {
+      flash(`导入失败：${error instanceof Error ? error.message : "文件无法读取"}`);
+    }
+  }
+
   async function handleExport() {
     if (!lines.length) return flash("请先完成标注");
     setBusy("export");
@@ -415,7 +478,18 @@ export default function Home() {
               <strong>读音规则</strong>
               <span>保存的上下文规则会优先于词典读音</span>
             </div>
-            <span>{overrides.length} 条</span>
+            <div className="rulePanelTools">
+              <span>{overrides.length} 条</span>
+              <button className="ghostButton compactButton" disabled={!overrides.length} onClick={exportRules}>导出 JSON</button>
+              <button className="secondaryButton compactButton" onClick={() => ruleImportRef.current?.click()}>导入 JSON</button>
+              <input
+                ref={ruleImportRef}
+                className="visuallyHidden"
+                type="file"
+                accept="application/json,.json"
+                onChange={importRules}
+              />
+            </div>
           </div>
           {overrides.length === 0 ? (
             <div className="emptyRule">还没有保存过读音规则。</div>
