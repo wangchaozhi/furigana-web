@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+import os
+from contextlib import asynccontextmanager
+from io import BytesIO
+from urllib.parse import quote
+
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
+from . import db
+from .analyzer.sudachi import SudachiAnnotator
+from .exporters.docx import build_docx
+from .models import (
+    AnnotateRequest,
+    AnnotateResponse,
+    ExportDocxRequest,
+    OverrideCreate,
+    OverrideItem,
+    ProjectCreate,
+    ProjectItem,
+    ProjectSummary,
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.init_db()
+    app.state.annotator = SudachiAnnotator()
+    yield
+
+
+app = FastAPI(title="Furigana Web API", version="1.0.0", lifespan=lifespan)
+
+origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/api/annotate", response_model=AnnotateResponse)
+def annotate(payload: AnnotateRequest) -> AnnotateResponse:
+    overrides = db.list_overrides()
+    lines = app.state.annotator.annotate(payload.text, overrides)
+    return AnnotateResponse(lines=lines)
+
+
+@app.post("/api/export/docx")
+def export_docx(payload: ExportDocxRequest):
+    content = build_docx(payload)
+    filename = (payload.meta.title.strip() or "furigana") + ".docx"
+    encoded = quote(filename)
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"}
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers=headers,
+    )
+
+
+@app.get("/api/overrides", response_model=list[OverrideItem])
+def list_overrides() -> list[OverrideItem]:
+    return db.list_overrides()
+
+
+@app.post("/api/overrides", response_model=OverrideItem)
+def create_override(payload: OverrideCreate) -> OverrideItem:
+    return db.upsert_override(payload)
+
+
+@app.delete("/api/overrides/{override_id}", status_code=204)
+def remove_override(override_id: int) -> Response:
+    if not db.delete_override(override_id):
+        raise HTTPException(status_code=404, detail="Override not found")
+    return Response(status_code=204)
+
+
+@app.get("/api/projects", response_model=list[ProjectSummary])
+def list_projects() -> list[ProjectSummary]:
+    return db.list_projects()
+
+
+@app.post("/api/projects", response_model=ProjectItem)
+def save_project(payload: ProjectCreate) -> ProjectItem:
+    return db.save_project(payload)
+
+
+@app.get("/api/projects/{project_id}", response_model=ProjectItem)
+def get_project(project_id: int) -> ProjectItem:
+    project = db.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@app.delete("/api/projects/{project_id}", status_code=204)
+def remove_project(project_id: int) -> Response:
+    if not db.delete_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return Response(status_code=204)

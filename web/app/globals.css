@@ -1,0 +1,259 @@
+:root {
+  --bg: #f4f4f1;
+  --surface: #ffffff;
+  --text: #151515;
+  --muted: #73736f;
+  --line: #dfdfd9;
+  --accent: #151515;
+  --soft: #eeeeea;
+  --shadow: 0 14px 45px rgba(20, 20, 16, 0.06);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Yu Gothic", sans-serif;
+}
+
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+
+.shell { width: min(1480px, calc(100% - 48px)); margin: 0 auto; padding: 26px 0 34px; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.topbar > div:first-child { display: flex; align-items: center; gap: 14px; }
+.brandMark {
+  width: 48px; height: 48px; display: grid; place-items: center;
+  background: #151515; color: #fff; border-radius: 14px;
+  font-family: "Yu Mincho", serif; font-size: 25px; box-shadow: var(--shadow);
+}
+.topbar h1 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+.topbar p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.topActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.primaryButton, .secondaryButton, .ghostButton, .deleteButton, .iconButton {
+  border: 0; border-radius: 10px; padding: 10px 14px; transition: transform .15s ease, background .15s ease;
+}
+.primaryButton { background: var(--accent); color: #fff; }
+.secondaryButton { background: #e8e8e3; color: #171717; }
+.ghostButton { background: transparent; border: 1px solid var(--line); }
+.deleteButton { background: transparent; color: #8d4e4e; padding: 7px 9px; }
+.iconButton { background: transparent; font-size: 22px; padding: 3px 8px; }
+.primaryButton:hover:not(:disabled), .secondaryButton:hover:not(:disabled), .ghostButton:hover:not(:disabled) { transform: translateY(-1px); }
+.full { width: 100%; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.metaGrid {
+  display: grid; grid-template-columns: 2fr 1.2fr .6fr; gap: 12px; padding: 14px; margin-bottom: 16px;
+}
+label { display: flex; flex-direction: column; gap: 6px; color: #555; font-size: 12px; }
+input, textarea {
+  width: 100%; border: 1px solid var(--line); outline: none; background: #fbfbf9; color: var(--text); border-radius: 10px;
+}
+input { padding: 11px 12px; }
+input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(50, 50, 45, .06); }
+
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.editorCard, .previewCard { min-height: 650px; overflow: hidden; }
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
+.cardHead h2 { margin: 2px 0 0; font-size: 17px; }
+.eyebrow { color: #8b8b84; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
+.hintPill { background: var(--soft); color: #696963; padding: 6px 9px; border-radius: 999px; font-size: 11px; }
+
+.sourceInput {
+  display: block; width: calc(100% - 36px); height: 540px; margin: 18px; resize: vertical;
+  padding: 18px; border-radius: 13px; line-height: 2; font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", sans-serif; font-size: 16px;
+}
+.footNote { color: var(--muted); font-size: 11px; margin: -8px 20px 18px; line-height: 1.6; }
+
+.previewScroll {
+  min-height: 540px;
+  max-height: 610px;
+  overflow: auto;
+  padding: 24px 20px 120px;
+  background: #ededE8;
+}
+.documentSheet {
+  width: min(100%, 760px);
+  min-height: 980px;
+  margin: 0 auto;
+  padding: 52px 56px 64px;
+  background: #fff;
+  color: #151515;
+  border: 1px solid #e3e3de;
+  border-radius: 4px;
+  box-shadow: 0 12px 38px rgba(20, 20, 16, .08);
+  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+.documentHeader {
+  padding-bottom: 22px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #ecece7;
+}
+.documentHeader h3 {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic", sans-serif;
+  font-size: 29px;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+.documentHeader p {
+  margin: 8px 0 0;
+  color: #555550;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.documentLyrics { padding-top: 4px; }
+.lyricsLine { min-height: 43px; line-height: 2.5; font-size: 18px; white-space: pre-wrap; }
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: .55em; line-height: 1; user-select: none; }
+.segment.editable { border-radius: 4px; transition: background .12s ease; }
+.segment.editable:hover, .segment.selected { background: #efefe9; }
+.emptyState { color: var(--muted); display: grid; place-items: center; min-height: 500px; font-size: 13px; }
+
+.rubyEditor {
+  position: absolute; right: 18px; bottom: 18px; width: min(360px, calc(100% - 36px));
+  padding: 15px; background: rgba(255,255,255,.97); border: 1px solid var(--line); border-radius: 15px;
+  box-shadow: 0 18px 60px rgba(20,20,16,.14); backdrop-filter: blur(12px);
+}
+.previewCard { position: relative; }
+.rubyEditorHead { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.rubyEditorHead strong { display: block; font-size: 22px; margin-top: 2px; }
+.contextBox { margin: 10px 0; padding: 9px; background: #f5f5f1; border-radius: 9px; }
+.contextBox span { display: block; color: var(--muted); font-size: 10px; margin-bottom: 4px; }
+.contextBox code { font-family: "Yu Gothic", monospace; font-size: 11px; white-space: pre-wrap; }
+.helpText { margin: 9px 2px 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+
+.projectPanel { margin-bottom: 16px; background: #191919; color: white; border-radius: 16px; padding: 14px; box-shadow: var(--shadow); }
+.panelTitle { display: flex; justify-content: space-between; align-items: center; padding: 3px 5px 12px; }
+.panelTitle span, .emptySmall { color: #aaa; font-size: 12px; }
+.projectList { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.projectItem { display: flex; align-items: center; background: #252525; border-radius: 10px; padding: 5px 6px 5px 10px; }
+.projectOpen { flex: 1; min-width: 0; background: none; color: white; border: 0; text-align: left; padding: 6px; }
+.projectOpen strong, .projectOpen span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.projectOpen span { color: #aaa; font-size: 10px; margin-top: 3px; }
+
+.rulePanel { margin-bottom: 16px; padding: 14px; }
+.rulePanelTitle { padding: 3px 5px 12px; }
+.rulePanelTitle > div { display: flex; flex-direction: column; gap: 3px; }
+.rulePanelTitle > div span { color: var(--muted); font-size: 11px; }
+.ruleList { display: grid; gap: 7px; max-height: 280px; overflow: auto; }
+.ruleItem {
+  display: grid; grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.8fr) auto;
+  align-items: center; gap: 12px; min-width: 0; padding: 9px 10px 9px 13px;
+  background: #f7f7f4; border: 1px solid #e8e8e2; border-radius: 10px;
+}
+.ruleReading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ruleReading span { color: var(--muted); }
+.ruleReading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ruleContext { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emptyRule { color: var(--muted); font-size: 12px; padding: 10px 5px; }
+
+footer { text-align: center; color: var(--muted); font-size: 11px; padding-top: 20px; }
+footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 50;
+  background: #171717; color: white; border-radius: 999px; padding: 10px 16px; font-size: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.2);
+}
+
+@media (max-width: 980px) {
+  .shell { width: min(100% - 24px, 900px); }
+  .topbar { align-items: flex-start; }
+  .workspace { grid-template-columns: 1fr; }
+  .metaGrid { grid-template-columns: 1fr 1fr; }
+  .metaGrid label:first-child { grid-column: 1 / -1; }
+  .projectList { grid-template-columns: 1fr; }
+  .ruleItem { grid-template-columns: minmax(130px, .7fr) minmax(180px, 1.3fr) auto; }
+  .editorCard, .previewCard { min-height: auto; }
+}
+
+@media (max-width: 620px) {
+  .topbar { flex-direction: column; }
+  .topActions { width: 100%; justify-content: flex-start; }
+  .metaGrid { grid-template-columns: 1fr; }
+  .metaGrid label:first-child { grid-column: auto; }
+  .sourceInput { height: 420px; }
+  .previewScroll { min-height: 460px; padding: 14px 10px 100px; }
+  .documentSheet { min-height: 760px; padding: 38px 28px 48px; }
+  .documentHeader h3 { font-size: 24px; }
+  .lyricsLine { font-size: 17px; }
+  .ruleItem { grid-template-columns: 1fr auto; gap: 5px 10px; }
+  .ruleContext { grid-column: 1 / -1; grid-row: 2; }
+}
+
+
+@page {
+  size: A4;
+  margin: 16mm 17mm;
+}
+
+@media print {
+  :root { --bg: #fff; --surface: #fff; }
+  html, body { background: #fff !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .topbar,
+  .projectPanel,
+  .rulePanel,
+  .metaGrid,
+  .editorCard,
+  .previewCard > .cardHead,
+  .rubyEditor,
+  footer,
+  .toast {
+    display: none !important;
+  }
+
+  .shell {
+    width: auto;
+    margin: 0;
+    padding: 0;
+  }
+  .workspace { display: block; }
+  .previewCard {
+    display: block;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .previewScroll {
+    display: block;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    background: #fff;
+  }
+  .documentSheet {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .documentHeader { break-after: avoid; }
+  .lyricsLine { break-inside: avoid; }
+  .segment.editable:hover,
+  .segment.selected { background: transparent !important; }
+}
