@@ -704,6 +704,80 @@ CORS_ORIGINS=https://furigana.example.com
 CORS_ORIGINS=https://a.example.com,https://b.example.com
 ```
 
+## 完整部署到 Vercel
+
+仓库支持同时保留两种后端：
+
+- 原有 `app.main:app`：Docker/VPS + SQLite，本地模式默认不要求登录；
+- `api/index.py`：Vercel FastAPI Function + Supabase Auth/PostgreSQL，要求登录并按用户隔离数据。
+
+两种入口由同一个 `create_app(database)` 应用工厂创建，共享路由、Sudachi、翻译和 DOCX 代码，不需要维护两套业务实现。
+
+### 1. 创建 Supabase 项目
+
+在 Supabase 中创建项目并启用 Email 登录。记录：
+
+- Project URL；
+- Publishable/anon key（只能用于浏览器的公开 Key）；
+- PostgreSQL connection string，Vercel 建议使用 Supabase 提供的 Pooler 地址。
+
+不要把 Supabase `service_role` Key 设置为任何 `NEXT_PUBLIC_*` 环境变量。
+
+### 2. 创建 Vercel API 项目
+
+从本仓库创建项目，Root Directory 选择 `api`。配置：
+
+```env
+DATABASE_URL=postgresql://...
+AUTH_REQUIRED=true
+SUPABASE_URL=https://your-project.supabase.co
+CORS_ORIGINS=https://your-web.vercel.app
+```
+
+如果 Supabase 项目仍使用 Legacy HS256 JWT，可额外设置仅后端可见的：
+
+```env
+SUPABASE_JWT_SECRET=...
+```
+
+使用 Preview Deployment 时，可以把明确的预览域名加入 `CORS_ORIGINS`；也可以谨慎设置：
+
+```env
+CORS_ORIGIN_REGEX=https://.*\.vercel\.app
+```
+
+首次 Function 启动会幂等创建 `app_users`、`projects` 和 `ruby_overrides`。对应 SQL 也保存在 `api/migrations/001_initial.sql`，可在 Supabase SQL Editor 中提前执行。
+
+### 3. 创建 Vercel Web 项目
+
+再次从同一仓库创建项目，Root Directory 选择 `web`。配置：
+
+```env
+NEXT_PUBLIC_API_BASE_URL=https://your-api.vercel.app
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+```
+
+部署后，页面会显示注册/登录界面。FastAPI 会验证 Supabase access token，并同步最小用户资料到 `app_users`。项目、句级/项目级/全局读音规则都带 `user_id`；这里的“全局”只代表该用户的所有项目，不会影响其他账户。
+
+### 4. 导入原有 SQLite 数据（可选）
+
+先在 Supabase Authentication 用户列表中取得目标用户 UUID，然后在 `api` 目录运行：
+
+```bash
+DATABASE_URL='postgresql://...' python scripts/migrate_sqlite_to_postgres.py \
+  ../data/furigana.sqlite3 --user-id '用户 UUID' --email 'user@example.com'
+```
+
+迁移脚本会导入历史项目和读音规则，并把旧项目规则关联到新项目 ID。建议向空数据库导入，并在操作前备份 SQLite 文件。
+
+### 身份与接口边界
+
+- `/health` 和 `/api/auth/config` 可匿名访问；
+- 标注、歌词搜索、翻译、DOCX、项目和规则接口在云端模式全部要求 Bearer Token；
+- 本地模式 `AUTH_REQUIRED=false` 时使用 `LOCAL_USER_ID=local`，保持原有无需登录的使用方式；
+- 浏览器草稿也按用户 ID 分开保存，切换账户不会共用草稿。
+
 ---
 
 # 12. 当前实现边界

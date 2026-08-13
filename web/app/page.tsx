@@ -8,6 +8,8 @@ import {
   deleteOverride,
   deleteProject,
   exportDocx,
+  getAuthConfig,
+  getCurrentUser,
   getTranslationStatus,
   getProject,
   listOverrides,
@@ -15,10 +17,12 @@ import {
   saveOverride,
   saveProject,
   searchLyrics,
+  setAccessToken,
   translateLines,
   updateOverride,
   updateProject,
 } from "@/lib/api";
+import { cloudAuthEnabled, getSupabaseClient } from "@/lib/auth";
 import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
@@ -65,6 +69,13 @@ export default function Home() {
   const [overrides, setOverrides] = useState<OverrideItem[]>([]);
   const [overridePanel, setOverridePanel] = useState(false);
   const [layoutPanel, setLayoutPanel] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authUser, setAuthUser] = useState<{ id: string; email: string } | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authBusy, setAuthBusy] = useState(false);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
@@ -122,11 +133,73 @@ export default function Home() {
   }
 
   useEffect(() => {
+    let active = true;
+    const supabase = getSupabaseClient();
+
+    async function applySession(token: string | null) {
+      setAccessToken(token);
+      if (!token) {
+        if (active) setAuthUser(null);
+        return;
+      }
+      try {
+        const user = await getCurrentUser();
+        if (active) setAuthUser(user);
+      } catch {
+        if (active) setAuthUser(null);
+      }
+    }
+
+    async function initializeAuth() {
+      let required = cloudAuthEnabled;
+      try {
+        required = (await getAuthConfig()).required;
+      } catch {
+        // If the API cannot be reached yet, the public Supabase settings remain authoritative.
+      }
+      if (!active) return;
+      setAuthRequired(required);
+      if (!required) {
+        setAccessToken(null);
+        setAuthUser({ id: "local", email: "本地模式" });
+        setAuthReady(true);
+        return;
+      }
+      if (!supabase) {
+        setAuthReady(true);
+        return;
+      }
+      const { data } = await supabase.auth.getSession();
+      await applySession(data.session?.access_token || null);
+      if (active) setAuthReady(true);
+    }
+
+    void initializeAuth();
+    const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
+      void applySession(session?.access_token || null).finally(() => active && setAuthReady(true));
+    }).data.subscription;
+    return () => {
+      active = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || (authRequired && !authUser)) return;
+    setProjects([]);
+    setOverrides([]);
+    setMeta(EMPTY_META);
+    setLayout(DEFAULT_LAYOUT);
+    setTranslationLanguage("none");
+    setSource("");
+    setFreshLines([]);
+    setSelected(null);
+    setCurrentProjectId(null);
     refreshProjects();
     refreshOverrides();
     getTranslationStatus().then(setTranslationStatus).catch(() => setTranslationStatus(null));
     try {
-      const raw = window.localStorage.getItem(DRAFT_KEY);
+      const raw = window.localStorage.getItem(`${DRAFT_KEY}:${authUser?.id || "local"}`);
       if (!raw) return;
       const draft = JSON.parse(raw) as {
         meta?: DocumentMeta;
@@ -148,9 +221,9 @@ export default function Home() {
         flash("已恢复上次未完成的草稿");
       }
     } catch {
-      window.localStorage.removeItem(DRAFT_KEY);
+      window.localStorage.removeItem(`${DRAFT_KEY}:${authUser?.id || "local"}`);
     }
-  }, []);
+  }, [authReady, authRequired, authUser?.id]);
 
   useEffect(() => {
     function handleHistoryShortcut(event: KeyboardEvent) {
@@ -169,22 +242,59 @@ export default function Home() {
   }, [pastLines, futureLines, lines]);
 
   useEffect(() => {
+    if (!authReady || (authRequired && !authUser)) return;
     const timer = window.setTimeout(() => {
+      const draftKey = `${DRAFT_KEY}:${authUser?.id || "local"}`;
       if (!source && !meta.title && !meta.artist && !meta.year && !lines.length) {
-        window.localStorage.removeItem(DRAFT_KEY);
+        window.localStorage.removeItem(draftKey);
         return;
       }
       window.localStorage.setItem(
-        DRAFT_KEY,
+        draftKey,
         JSON.stringify({ meta, layout, translationLanguage, translationProvider, source, lines, projectId: currentProjectId }),
       );
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
+  }, [authReady, authRequired, authUser?.id, meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
 
   function flash(text: string) {
     setMessage(text);
     window.setTimeout(() => setMessage(""), 2400);
+  }
+
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase) return flash("缺少 Supabase 前端环境变量");
+    if (!authEmail.trim() || authPassword.length < 6) return flash("请输入邮箱和至少 6 位密码");
+    setAuthBusy(true);
+    try {
+      const result = authMode === "signup"
+        ? await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword })
+        : await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
+      if (result.error) throw result.error;
+      if (authMode === "signup" && !result.data.session) {
+        flash("注册成功，请查收验证邮件后登录");
+        setAuthMode("signin");
+      } else {
+        flash(authMode === "signup" ? "注册并登录成功" : "登录成功");
+      }
+      setAuthPassword("");
+    } catch (error) {
+      flash(`${authMode === "signup" ? "注册" : "登录"}失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleSignOut() {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setProjects([]);
+    setOverrides([]);
+    setCurrentProjectId(null);
+    flash("已退出登录");
   }
 
   async function handleLyricsSearch(event: FormEvent<HTMLFormElement>) {
@@ -542,7 +652,7 @@ export default function Home() {
     setFreshLines([]);
     setSelected(null);
     setCurrentProjectId(null);
-    window.localStorage.removeItem(DRAFT_KEY);
+    window.localStorage.removeItem(`${DRAFT_KEY}:${authUser?.id || "local"}`);
   }
 
   return (
@@ -556,6 +666,7 @@ export default function Home() {
           </div>
         </div>
         <div className="topActions">
+          {authReady && (!authRequired || authUser) && <>
           <button className="ghostButton" onClick={() => setProjectPanel((x) => !x)}>历史项目</button>
           <button
             className="ghostButton"
@@ -580,9 +691,58 @@ export default function Home() {
           <button className="primaryButton" disabled={!lines.length || busy === "export"} onClick={handleExport}>
             {busy === "export" ? "生成中…" : "导出 Word"}
           </button>
+          </>}
+          {authRequired && authUser && (
+            <div className="accountBadge">
+              <span title={authUser.email}>{authUser.email || "已登录"}</span>
+              <button className="ghostButton compactButton" onClick={handleSignOut}>退出</button>
+            </div>
+          )}
         </div>
       </header>
 
+      {!authReady ? (
+        <section className="authGate card"><p>正在检查登录状态…</p></section>
+      ) : authRequired && !authUser ? (
+        <section className="authGate card">
+          <div>
+            <span className="eyebrow">CLOUD ACCOUNT</span>
+            <h2>{authMode === "signin" ? "登录 Furigana Studio" : "创建账户"}</h2>
+            <p>登录后，历史项目和读音规则将只对你的账户可见。</p>
+          </div>
+          {cloudAuthEnabled ? (
+            <form onSubmit={handleAuth}>
+              <label>
+                邮箱
+                <input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} required />
+              </label>
+              <label>
+                密码
+                <input
+                  type="password"
+                  minLength={6}
+                  autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  required
+                />
+              </label>
+              <button className="primaryButton" disabled={authBusy} type="submit">
+                {authBusy ? "请稍候…" : authMode === "signin" ? "登录" : "注册"}
+              </button>
+              <button
+                className="ghostButton"
+                type="button"
+                onClick={() => setAuthMode((mode) => mode === "signin" ? "signup" : "signin")}
+              >
+                {authMode === "signin" ? "没有账户？注册" : "已有账户？登录"}
+              </button>
+            </form>
+          ) : (
+            <p className="authConfigError">部署缺少 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</p>
+          )}
+        </section>
+      ) : <>
       {projectPanel && (
         <section className="projectPanel">
           <div className="panelTitle">
@@ -1006,6 +1166,7 @@ export default function Home() {
       <footer>
         预览页可直接下载 PNG 或打印；Word 导出使用原生 WordprocessingML <code>w:ruby</code>。
       </footer>
+      </>}
 
       {message && <div className="toast">{message}</div>}
       <style>{`@media print { @page { margin: ${(layout.page_margin * 0.32).toFixed(1)}mm; } }`}</style>

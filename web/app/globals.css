@@ -42,6 +42,14 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .topbar h1 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
 .topbar p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
 .topActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.accountBadge { display: flex; align-items: center; gap: 8px; padding-left: 4px; }
+.accountBadge span { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.authGate { width: min(520px, 100%); margin: 72px auto; padding: 28px; }
+.authGate h2 { margin: 7px 0 5px; font-size: 24px; }
+.authGate p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.authGate form { display: grid; gap: 12px; margin-top: 22px; }
+.authGate form button { width: 100%; }
+.authGate .authConfigError { margin-top: 20px; padding: 12px; color: #8d4e4e; background: #fff1f1; border-radius: 10px; }
 
 .primaryButton, .secondaryButton, .ghostButton, .deleteButton, .iconButton {
   border: 0; border-radius: 10px; padding: 10px 14px; transition: transform .15s ease, background .15s ease;
@@ -280,6 +288,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
 @media (max-width: 620px) {
   .topbar { flex-direction: column; }
   .topActions { width: 100%; justify-content: flex-start; }
+  .accountBadge { width: 100%; justify-content: space-between; padding-left: 0; }
   .metaGrid { grid-template-columns: 1fr; }
   .lyricsSearchForm { grid-template-columns: 1fr; }
   .lyricsSearchActions { grid-column: auto; flex-wrap: wrap; }

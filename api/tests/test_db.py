@@ -20,12 +20,13 @@ def test_update_override(tmp_path, monkeypatch):
 def test_rule_scopes_and_precedence(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "_DB_PATH", tmp_path / "scopes.sqlite3")
     db.init_db()
+    project = db.save_project(ProjectCreate(title="规则项目", source_text="明日", lines=[]))
     db.upsert_override(OverrideCreate(surface="明日", reading="あす", scope="global"))
-    db.upsert_override(OverrideCreate(surface="明日", reading="みょうにち", scope="project", project_id=7))
+    db.upsert_override(OverrideCreate(surface="明日", reading="みょうにち", scope="project", project_id=project.id))
     db.upsert_override(OverrideCreate(surface="明日", reading="あした", scope="sentence", context="でも明日"))
 
-    project_rules = db.list_applicable_overrides(7)
-    other_rules = db.list_applicable_overrides(8)
+    project_rules = db.list_applicable_overrides(project.id)
+    other_rules = db.list_applicable_overrides(project.id + 1)
 
     assert [item.scope for item in project_rules] == ["sentence", "project", "global"]
     assert [item.scope for item in other_rules] == ["sentence", "global"]
@@ -109,3 +110,20 @@ def test_migrates_legacy_rules_to_scopes(tmp_path, monkeypatch):
 
     rules = db.list_overrides()
     assert {(item.surface, item.scope) for item in rules} == {("明日", "sentence"), ("今日", "global")}
+
+
+def test_users_cannot_access_each_others_projects_or_rules(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "users.sqlite3")
+    db.init_db()
+    db.ensure_user("alice", "alice@example.com")
+    db.ensure_user("bob", "bob@example.com")
+    project = db.save_project(ProjectCreate(title="Alice", source_text="明日", lines=[]), "alice")
+    rule = db.upsert_override(OverrideCreate(surface="明日", reading="あす", scope="global"), "alice")
+
+    assert [item.id for item in db.list_projects("alice")] == [project.id]
+    assert db.list_projects("bob") == []
+    assert [item.id for item in db.list_overrides("alice")] == [rule.id]
+    assert db.list_overrides("bob") == []
+    assert db.get_project(project.id, "bob") is None
+    assert not db.delete_project(project.id, "bob")
+    assert not db.delete_override(rule.id, "bob")
