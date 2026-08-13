@@ -48,7 +48,7 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
           </header>
         )}
 
-        <div className={`documentLyrics ${layout.vertical ? "verticalLyrics" : ""}`}>
+        <div className={`documentLyrics ${layout.vertical ? "verticalLyrics" : `columns-${layout.columns || 1}`}`}>
           {lines.map((line, lineIndex) => (
             <div className="bilingualLine" key={`${lineIndex}-${line.source}`}>
               <div className="lyricsLine">

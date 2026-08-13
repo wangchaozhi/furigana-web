@@ -30,6 +30,7 @@ const DEFAULT_LAYOUT: LayoutSettings = {
   page_margin: 56,
   font_family: "gothic",
   vertical: false,
+  columns: 1,
 };
 const DRAFT_KEY = "furigana-studio:draft:v1";
 
@@ -128,7 +129,7 @@ export default function Home() {
         setMeta(draft.meta || EMPTY_META);
         setSource(draft.source || "");
         setFreshLines(draft.lines || []);
-        setLayout(draft.layout || DEFAULT_LAYOUT);
+        setLayout({ ...DEFAULT_LAYOUT, ...draft.layout });
         setTranslationLanguage(draft.translationLanguage || "none");
         setTranslationProvider(draft.translationProvider || "openai");
         setCurrentProjectId(draft.projectId || null);
@@ -459,7 +460,7 @@ export default function Home() {
     try {
       const project = await getProject(id);
       setMeta({ title: project.title, artist: project.artist, year: project.year });
-      setLayout(project.layout || DEFAULT_LAYOUT);
+      setLayout({ ...DEFAULT_LAYOUT, ...project.layout });
       setTranslationLanguage(project.translation_language || "none");
       setSource(project.source_text);
       setFreshLines(project.lines);
@@ -683,9 +684,26 @@ export default function Home() {
             </label>
             <label>
               排列方向
-              <select value={layout.vertical ? "vertical" : "horizontal"} onChange={(event) => setLayout({ ...layout, vertical: event.target.value === "vertical" })}>
+              <select
+                value={layout.vertical ? "vertical" : "horizontal"}
+                onChange={(event) => {
+                  const vertical = event.target.value === "vertical";
+                  setLayout({ ...layout, vertical, columns: vertical ? 1 : layout.columns });
+                }}
+              >
                 <option value="horizontal">横排</option>
                 <option value="vertical">竖排</option>
+              </select>
+            </label>
+            <label>
+              正文分栏
+              <select
+                value={layout.columns}
+                disabled={layout.vertical}
+                onChange={(event) => setLayout({ ...layout, columns: Number(event.target.value) as LayoutSettings["columns"] })}
+              >
+                <option value={1}>单栏</option>
+                <option value={2}>双栏</option>
               </select>
             </label>
           </div>
@@ -705,6 +723,67 @@ export default function Home() {
           年份
           <input value={meta.year} onChange={(e) => setMeta({ ...meta, year: e.target.value })} placeholder="2009" />
         </label>
+      </section>
+
+      <section className="workspace">
+        <div className="card editorCard">
+          <div className="cardHead">
+            <div>
+              <span className="eyebrow">01 / INPUT</span>
+              <h2>原文</h2>
+            </div>
+            <button className="primaryButton" disabled={busy === "annotate"} onClick={handleAnnotate}>
+              {busy === "annotate" ? "分析中…" : lines.length ? "重新标注" : "自动标注"}
+            </button>
+          </div>
+          <textarea
+            className="sourceInput"
+            value={source}
+            onChange={(e) => {
+              setSource(e.target.value);
+              if (lines.length) {
+                setFreshLines([]);
+                setSelected(null);
+              }
+            }}
+            placeholder={"粘贴日文歌词或文章…\n例如：でも明日が見えなくて"}
+            spellCheck={false}
+          />
+          <div className="footNote">Sudachi 负责词形与读音；现有假名会作为锚点，只给汉字部分生成振假名。</div>
+        </div>
+
+        <div className="card previewCard">
+          <div className="cardHead">
+            <div>
+              <span className="eyebrow">02 / REVIEW</span>
+              <h2>振假名预览</h2>
+            </div>
+            <div className="reviewActions">
+              <button className="ghostButton compactButton" disabled={!pastLines.length} onClick={undoRubyEdit}>撤销</button>
+              <button className="ghostButton compactButton" disabled={!futureLines.length} onClick={redoRubyEdit}>重做</button>
+              <span className="hintPill">点击振假名可修改</span>
+            </div>
+          </div>
+          <RubyPreview
+            ref={documentSheetRef}
+            meta={meta}
+            layout={layout}
+            translationLanguage={translationLanguage}
+            lines={lines}
+            selected={selected}
+            onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
+          />
+          {selected && (
+            <RubyEditor
+              lines={lines}
+              selected={selected}
+              projectId={currentProjectId}
+              onChange={updateSelectedRuby}
+              onSaveOverride={handleSaveOverride}
+              onClose={() => setSelected(null)}
+            />
+          )}
+        </div>
       </section>
 
       <section className="translationPanel card">
@@ -775,67 +854,6 @@ export default function Home() {
             </p>
           </>
         )}
-      </section>
-
-      <section className="workspace">
-        <div className="card editorCard">
-          <div className="cardHead">
-            <div>
-              <span className="eyebrow">01 / INPUT</span>
-              <h2>原文</h2>
-            </div>
-            <button className="primaryButton" disabled={busy === "annotate"} onClick={handleAnnotate}>
-              {busy === "annotate" ? "分析中…" : lines.length ? "重新标注" : "自动标注"}
-            </button>
-          </div>
-          <textarea
-            className="sourceInput"
-            value={source}
-            onChange={(e) => {
-              setSource(e.target.value);
-              if (lines.length) {
-                setFreshLines([]);
-                setSelected(null);
-              }
-            }}
-            placeholder={"粘贴日文歌词或文章…\n例如：でも明日が見えなくて"}
-            spellCheck={false}
-          />
-          <div className="footNote">Sudachi 负责词形与读音；现有假名会作为锚点，只给汉字部分生成振假名。</div>
-        </div>
-
-        <div className="card previewCard">
-          <div className="cardHead">
-            <div>
-              <span className="eyebrow">02 / REVIEW</span>
-              <h2>振假名预览</h2>
-            </div>
-            <div className="reviewActions">
-              <button className="ghostButton compactButton" disabled={!pastLines.length} onClick={undoRubyEdit}>撤销</button>
-              <button className="ghostButton compactButton" disabled={!futureLines.length} onClick={redoRubyEdit}>重做</button>
-              <span className="hintPill">点击振假名可修改</span>
-            </div>
-          </div>
-          <RubyPreview
-            ref={documentSheetRef}
-            meta={meta}
-            layout={layout}
-            translationLanguage={translationLanguage}
-            lines={lines}
-            selected={selected}
-            onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
-          />
-          {selected && (
-            <RubyEditor
-              lines={lines}
-              selected={selected}
-              projectId={currentProjectId}
-              onChange={updateSelectedRuby}
-              onSaveOverride={handleSaveOverride}
-              onClose={() => setSelected(null)}
-            />
-          )}
-        </div>
       </section>
 
       <footer>

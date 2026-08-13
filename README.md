@@ -170,6 +170,25 @@ git push origin v1.3.0
 
 # 2. 本地开发
 
+Docker Compose 使用构建后的镜像，源码修改后通常需要重新运行 `docker compose up --build` 才会生效。需要边修改边预览时，推荐使用开发启动脚本：
+
+Windows PowerShell：
+
+```powershell
+.\scripts\dev-windows.ps1
+```
+
+macOS（终端运行或双击 Finder 中的文件）：
+
+```bash
+chmod +x scripts/dev-macos.command
+./scripts/dev-macos.command
+```
+
+脚本会首次创建 `api/.venv`、检查依赖并同时启动前后端。前端支持热更新，后端使用 Uvicorn 自动重载。脚本优先使用 Web 端口 3000 和 API 端口 8000；端口被 Docker 或其他程序占用时会自动向后寻找可用端口，并同步配置前端 API 地址和后端 CORS。Windows 会打开两个服务窗口，关闭它们即可停止；macOS 在启动终端按 `Ctrl+C` 即可同时停止。
+
+以下是等效的手动启动步骤：
+
 ## 后端
 
 建议 Python 3.12。

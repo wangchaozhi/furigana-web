@@ -133,7 +133,8 @@ input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(
   line-height: 1.5;
 }
 .documentLyrics { padding-top: 4px; }
-.bilingualLine { margin-bottom: 2px; }
+.documentLyrics.columns-2 { column-count: 2; column-gap: 36px; column-rule: 1px solid #ecece7; }
+.bilingualLine { margin-bottom: 2px; break-inside: avoid; }
 .lyricsLine { min-height: 43px; line-height: var(--doc-line-height, 2.5); font-size: var(--doc-font-size, 18px); white-space: pre-wrap; }
 .translationLine { margin: -7px 0 9px; color: #66665f; font-size: calc(var(--doc-font-size, 18px) * .72); line-height: 1.45; white-space: pre-wrap; }
 ruby { ruby-position: over; ruby-align: center; }
@@ -310,7 +311,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
     box-shadow: none;
   }
   .documentHeader { break-after: avoid; }
-  .lyricsLine { break-inside: avoid; }
+  .bilingualLine { break-inside: avoid; }
   .segment.editable:hover,
   .segment.selected { background: transparent !important; }
   .segment.ambiguous { text-decoration: none !important; }

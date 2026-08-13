@@ -28,6 +28,7 @@ export type LayoutSettings = {
   page_margin: number;
   font_family: "gothic" | "mincho" | "system";
   vertical: boolean;
+  columns: 1 | 2;
 };
 
 export type OverrideItem = {

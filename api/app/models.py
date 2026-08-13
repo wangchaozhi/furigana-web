@@ -39,6 +39,7 @@ class LayoutSettings(BaseModel):
     page_margin: int = Field(default=56, ge=16, le=96)
     font_family: Literal["gothic", "mincho", "system"] = "gothic"
     vertical: bool = False
+    columns: Literal[1, 2] = 1
 
 
 class ExportDocxRequest(BaseModel):

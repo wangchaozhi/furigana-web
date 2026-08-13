@@ -105,6 +105,11 @@ def build_docx(request: ExportDocxRequest) -> bytes:
     section.bottom_margin = Mm(margin_mm)
     section.left_margin = Mm(margin_mm)
     section.right_margin = Mm(margin_mm)
+    if request.layout.columns == 2 and not request.layout.vertical:
+        columns = OxmlElement("w:cols")
+        columns.set(qn("w:num"), "2")
+        columns.set(qn("w:space"), "720")
+        section._sectPr.append(columns)
     if request.layout.vertical:
         text_direction = OxmlElement("w:textDirection")
         text_direction.set(qn("w:val"), "tbRl")
