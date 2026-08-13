@@ -42,6 +42,16 @@ ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ruby_overrides ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS deny_direct_client_access ON app_users;
+DROP POLICY IF EXISTS deny_direct_client_access ON projects;
+DROP POLICY IF EXISTS deny_direct_client_access ON ruby_overrides;
+CREATE POLICY deny_direct_client_access ON app_users
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY deny_direct_client_access ON projects
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY deny_direct_client_access ON ruby_overrides
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
