@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Furigana Web API", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="Furigana Web API", version="1.3.0", lifespan=lifespan)
 
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
 app.add_middleware(

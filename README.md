@@ -134,32 +134,34 @@ docker compose down
 
 ### 使用 Release 镜像
 
-每个 `v*` Git 标签都会在 GitHub Actions 校验通过后自动创建同名 Release，并发布 API、Web 两个 GHCR 镜像。Release 页面附带 `docker-compose.release.yml`，下载后可直接启动最新版本：
+每个 `v*` Git 标签都会在 GitHub Actions 校验通过后自动创建同名 Release，并发布 API、Web 两个 GHCR 镜像。Release 页面会附带 Windows ZIP、macOS TAR、`docker-compose.release.yml` 和 `SHA256SUMS.txt`；解压对应平台的压缩包后可直接运行其中的启动脚本。
+
+也可以只下载 Compose 文件并启动最新版本：
 
 ```bash
 docker compose -f docker-compose.release.yml up -d
 ```
 
-要固定到某个版本（例如 `v1.2.0`）：
+要固定到某个版本（例如 `v1.3.0`）：
 
 macOS / Linux：
 
 ```bash
-FURIGANA_VERSION=v1.2.0 docker compose -f docker-compose.release.yml up -d
+FURIGANA_VERSION=v1.3.0 docker compose -f docker-compose.release.yml up -d
 ```
 
 Windows PowerShell：
 
 ```powershell
-$env:FURIGANA_VERSION="v1.2.0"
+$env:FURIGANA_VERSION="v1.3.0"
 docker compose -f docker-compose.release.yml up -d
 ```
 
 维护者创建发布版本：
 
 ```bash
-git tag -a v1.2.0 -m "v1.2.0"
-git push origin v1.2.0
+git tag -a v1.3.0 -m "v1.3.0"
+git push origin v1.3.0
 ```
 
 流水线会依次运行后端测试、前端类型检查和生产构建；全部成功后发布容器镜像并生成 GitHub Release。

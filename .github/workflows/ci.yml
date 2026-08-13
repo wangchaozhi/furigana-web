@@ -62,3 +62,18 @@ jobs:
           push: false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deployment-bundle:
+    name: Build deployment bundle
+    needs: [api, web, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Package deployment assets
+        run: bash scripts/package-release.sh "ci-${GITHUB_SHA::7}" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployment-bundle
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
