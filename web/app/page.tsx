@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RubyEditor from "@/components/RubyEditor";
 import RubyPreview from "@/components/RubyPreview";
+import SocialLoginButtons from "@/components/SocialLoginButtons";
 import {
   annotate,
   deleteOverride,
@@ -22,7 +23,7 @@ import {
   updateOverride,
   updateProject,
 } from "@/lib/api";
-import { cloudAuthEnabled, getSupabaseClient } from "@/lib/auth";
+import { cloudAuthEnabled, getSupabaseClient, oauthProviders, type OAuthProvider } from "@/lib/auth";
 import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
@@ -75,7 +76,7 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [authBusy, setAuthBusy] = useState(false);
+  const [authBusy, setAuthBusy] = useState<OAuthProvider | "password" | null>(null);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
@@ -267,7 +268,7 @@ export default function Home() {
     const supabase = getSupabaseClient();
     if (!supabase) return flash("缺少 Supabase 前端环境变量");
     if (!authEmail.trim() || authPassword.length < 6) return flash("请输入邮箱和至少 6 位密码");
-    setAuthBusy(true);
+    setAuthBusy("password");
     try {
       const result = authMode === "signup"
         ? await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword })
@@ -283,7 +284,24 @@ export default function Home() {
     } catch (error) {
       flash(`${authMode === "signup" ? "注册" : "登录"}失败：${error instanceof Error ? error.message : "未知错误"}`);
     } finally {
-      setAuthBusy(false);
+      setAuthBusy(null);
+    }
+  }
+
+  async function handleOAuthSignIn(provider: OAuthProvider) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return flash("缺少 Supabase 前端环境变量");
+    setAuthBusy(provider);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
+    } catch (error) {
+      const providerName = provider === "google" ? "Google" : "GitHub";
+      flash(`${providerName} 登录失败：${error instanceof Error ? error.message : "未知错误"}`);
+      setAuthBusy(null);
     }
   }
 
@@ -711,33 +729,36 @@ export default function Home() {
             <p>登录后，历史项目和读音规则将只对你的账户可见。</p>
           </div>
           {cloudAuthEnabled ? (
-            <form onSubmit={handleAuth}>
-              <label>
-                邮箱
-                <input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} required />
-              </label>
-              <label>
-                密码
-                <input
-                  type="password"
-                  minLength={6}
-                  autoComplete={authMode === "signin" ? "current-password" : "new-password"}
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
-                  required
-                />
-              </label>
-              <button className="primaryButton" disabled={authBusy} type="submit">
-                {authBusy ? "请稍候…" : authMode === "signin" ? "登录" : "注册"}
-              </button>
-              <button
-                className="ghostButton"
-                type="button"
-                onClick={() => setAuthMode((mode) => mode === "signin" ? "signup" : "signin")}
-              >
-                {authMode === "signin" ? "没有账户？注册" : "已有账户？登录"}
-              </button>
-            </form>
+            <div className="authMethods">
+              <SocialLoginButtons providers={oauthProviders} busyProvider={authBusy} onSignIn={handleOAuthSignIn} />
+              <form onSubmit={handleAuth}>
+                <label>
+                  邮箱
+                  <input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} required />
+                </label>
+                <label>
+                  密码
+                  <input
+                    type="password"
+                    minLength={6}
+                    autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    required
+                  />
+                </label>
+                <button className="primaryButton" disabled={authBusy !== null} type="submit">
+                  {authBusy === "password" ? "请稍候…" : authMode === "signin" ? "登录" : "注册"}
+                </button>
+                <button
+                  className="ghostButton"
+                  type="button"
+                  onClick={() => setAuthMode((mode) => mode === "signin" ? "signup" : "signin")}
+                >
+                  {authMode === "signin" ? "没有账户？注册" : "已有账户？登录"}
+                </button>
+              </form>
+            </div>
           ) : (
             <p className="authConfigError">部署缺少 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</p>
           )}

@@ -47,9 +47,22 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .authGate { width: min(520px, 100%); margin: 72px auto; padding: 28px; }
 .authGate h2 { margin: 7px 0 5px; font-size: 24px; }
 .authGate p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
-.authGate form { display: grid; gap: 12px; margin-top: 22px; }
+.authMethods { margin-top: 22px; }
+.authGate form { display: grid; gap: 12px; }
 .authGate form button { width: 100%; }
 .authGate .authConfigError { margin-top: 20px; padding: 12px; color: #8d4e4e; background: #fff1f1; border-radius: 10px; }
+.socialAuthButtons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.socialAuthButton {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  min-height: 42px; padding: 9px 12px; color: var(--text); background: #fff;
+  border: 1px solid var(--line); border-radius: 10px; font-size: 12px;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+.socialAuthButton:hover:not(:disabled) { transform: translateY(-1px); border-color: #b8b8b1; background: #fafaf8; }
+.socialAuthButton svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.authDivider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--muted); font-size: 10px; }
+.authDivider::before, .authDivider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.authDivider span { white-space: nowrap; }
 
 .primaryButton, .secondaryButton, .ghostButton, .deleteButton, .iconButton {
   border: 0; border-radius: 10px; padding: 10px 14px; transition: transform .15s ease, background .15s ease;
@@ -305,6 +318,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .ruleItem { grid-template-columns: 1fr auto; gap: 5px 10px; }
   .ruleContext { grid-column: 1 / -1; grid-row: 2; }
   .layoutGrid { grid-template-columns: 1fr; }
+  .socialAuthButtons { grid-template-columns: 1fr; }
 }
 
 

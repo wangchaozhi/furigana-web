@@ -715,7 +715,7 @@ CORS_ORIGINS=https://a.example.com,https://b.example.com
 
 ### 1. 创建 Supabase 项目
 
-在 Supabase 中创建项目并启用 Email 登录。记录：
+在 Supabase 中创建项目并启用 Email 登录。也可以启用 Google、GitHub OAuth；首次 OAuth 登录会由 Supabase Auth 自动创建身份，应用 API 随后会幂等创建 `app_users` 映射。记录：
 
 - Project URL；
 - Publishable/anon key（只能用于浏览器的公开 Key）；
@@ -756,9 +756,21 @@ CORS_ORIGIN_REGEX=https://.*\.vercel\.app
 NEXT_PUBLIC_API_BASE_URL=https://your-api.vercel.app
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+# 只填写已在 Supabase 中配置完成的 Provider
+NEXT_PUBLIC_OAUTH_PROVIDERS=google,github
 ```
 
 部署后，页面会显示注册/登录界面。FastAPI 会验证 Supabase access token，并同步最小用户资料到 `app_users`。项目、句级/项目级/全局读音规则都带 `user_id`；这里的“全局”只代表该用户的所有项目，不会影响其他账户。
+
+#### Google / GitHub OAuth（可选）
+
+1. 在 Google Cloud 创建 Web OAuth Client，或在 GitHub Developer settings 创建 OAuth App；
+2. Provider 的回调地址填写 Supabase 控制台显示的 `https://<project-ref>.supabase.co/auth/v1/callback`，而不是 Web 项目地址；
+3. 将 Client ID 和 Client Secret 填入 Supabase Authentication → Sign In / Providers，并启用对应 Provider；
+4. 在 Supabase URL Configuration 中保留生产站点 URL，并把本地/Preview 回调地址加入 Redirect URLs；
+5. 最后把已启用的 Provider 写入 Web 项目的 `NEXT_PUBLIC_OAUTH_PROVIDERS`，重新部署。
+
+Google 还需要把 Web 站点 Origin 加入 Authorized JavaScript origins。GitHub OAuth App 的 Homepage URL 使用 Web 站点地址。Provider Client Secret 只保存在 Google/GitHub 和 Supabase，不需要放进 Vercel，也不能加入 `NEXT_PUBLIC_*`。
 
 ### 4. 导入原有 SQLite 数据（可选）
 
@@ -820,7 +832,7 @@ DATABASE_URL='postgresql://...' python scripts/migrate_sqlite_to_postgres.py \
 - 一键导出 HTML；
 - 项目编辑版本历史；
 - 日语罗马音显示模式；
-- OAuth 登录与多用户隔离。
+- OAuth 账户合并提示与身份管理页面。
 
 如果只是自己使用，这个仓库当前版本已经覆盖主流程，不需要先引入富文本编辑器、Redis、PostgreSQL 或 Kubernetes。
 
