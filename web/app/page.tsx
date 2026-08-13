@@ -32,6 +32,7 @@ const DEFAULT_LAYOUT: LayoutSettings = {
   font_family: "gothic",
   vertical: false,
   columns: 1,
+  vertical_row_gap: 24,
 };
 const DRAFT_KEY = "furigana-studio:draft:v1";
 
@@ -457,10 +458,15 @@ export default function Home() {
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
       const { toPng } = await import("html-to-image");
       node.classList.add("exporting");
+      const captureWidth = layout.vertical ? Math.max(node.scrollWidth, node.offsetWidth) : undefined;
+      const captureHeight = Math.max(node.scrollHeight, node.offsetHeight);
       const dataUrl = await toPng(node, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: "#ffffff",
+        width: captureWidth,
+        height: captureHeight,
+        style: captureWidth ? { width: `${captureWidth}px`, maxWidth: "none" } : undefined,
       });
       const a = document.createElement("a");
       a.href = dataUrl;
@@ -737,7 +743,7 @@ export default function Home() {
                 value={layout.vertical ? "vertical" : "horizontal"}
                 onChange={(event) => {
                   const vertical = event.target.value === "vertical";
-                  setLayout({ ...layout, vertical, columns: vertical ? 1 : layout.columns });
+                  setLayout({ ...layout, vertical });
                 }}
               >
                 <option value="horizontal">横排</option>
@@ -745,15 +751,33 @@ export default function Home() {
               </select>
             </label>
             <label>
-              正文分栏
+              {layout.vertical ? "竖排换列" : "正文分栏"}
               <select
-                value={layout.columns}
+                value={layout.vertical ? "auto" : String(layout.columns)}
                 disabled={layout.vertical}
                 onChange={(event) => setLayout({ ...layout, columns: Number(event.target.value) as LayoutSettings["columns"] })}
               >
-                <option value={1}>单栏</option>
-                <option value={2}>双栏</option>
+                {layout.vertical ? (
+                    <option value="auto">排满后向下换组</option>
+                ) : (
+                  <>
+                    <option value="1">单栏</option>
+                    <option value="2">双栏</option>
+                  </>
+                )}
               </select>
+            </label>
+            <label>
+              竖排组间距 <output>{layout.vertical_row_gap}px</output>
+              <input
+                type="range"
+                min="0"
+                max="160"
+                step="4"
+                value={layout.vertical_row_gap}
+                disabled={!layout.vertical}
+                onChange={(event) => setLayout({ ...layout, vertical_row_gap: Number(event.target.value) })}
+              />
             </label>
           </div>
         </section>

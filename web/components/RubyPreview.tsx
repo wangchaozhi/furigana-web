@@ -36,6 +36,7 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
     "--doc-ruby-size": `${layout.ruby_scale}em`,
     "--doc-margin": `${layout.page_margin}px`,
     "--doc-font-family": fonts[layout.font_family],
+    "--vertical-row-gap": `${layout.vertical_row_gap ?? 24}px`,
   } as CSSProperties;
 
   return (

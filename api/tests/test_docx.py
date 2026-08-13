@@ -29,6 +29,7 @@ def test_docx_applies_layout_settings():
     with ZipFile(BytesIO(data)) as zf:
         xml = zf.read("word/document.xml").decode("utf-8")
     assert 'w:val="tbRl"' in xml
+    assert '<w:cols w:num="2"' not in xml
     assert 'w:eastAsia="Yu Mincho"' in xml
     assert '<w:hpsBaseText w:val="40"' in xml
 

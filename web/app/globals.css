@@ -159,9 +159,27 @@ input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(
 .translationLine { margin: -7px 0 9px; color: #66665f; font-size: calc(var(--doc-font-size, 18px) * .72); line-height: 1.45; white-space: pre-wrap; }
 ruby { ruby-position: over; ruby-align: center; }
 rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; }
-.verticalLyrics { writing-mode: vertical-rl; height: 820px; width: 100%; overflow-x: auto; }
+.verticalLyrics {
+  display: flex;
+  flex-flow: row-reverse wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  gap: var(--vertical-row-gap, 24px) 2px;
+  width: 100%;
+  overflow: visible;
+}
+.verticalLyrics .bilingualLine {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  gap: 4px;
+  height: auto;
+  max-height: 820px;
+  margin: 0;
+  writing-mode: vertical-rl;
+  break-inside: avoid;
+}
 .verticalLyrics .lyricsLine { min-width: 43px; min-height: 0; }
-.verticalLyrics .bilingualLine { display: flex; flex-direction: row; gap: 4px; }
 .verticalLyrics .translationLine { margin: 0; writing-mode: vertical-rl; }
 .segment.editable { border-radius: 4px; transition: background .12s ease; }
 .segment.editable:hover, .segment.selected { background: #efefe9; }
@@ -337,6 +355,8 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
     border-radius: 0;
     box-shadow: none;
   }
+  .verticalLyrics { column-gap: 0; width: 100%; }
+  .verticalLyrics .bilingualLine { height: auto; max-height: 245mm; }
   .documentHeader { break-after: avoid; }
   .bilingualLine { break-inside: avoid; }
   .segment.editable:hover,

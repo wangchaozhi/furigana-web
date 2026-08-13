@@ -54,6 +54,7 @@ class LayoutSettings(BaseModel):
     font_family: Literal["gothic", "mincho", "system"] = "gothic"
     vertical: bool = False
     columns: Literal[1, 2] = 1
+    vertical_row_gap: int = Field(default=24, ge=0, le=160)
 
 
 class ExportDocxRequest(BaseModel):

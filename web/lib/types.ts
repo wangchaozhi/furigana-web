@@ -39,6 +39,7 @@ export type LayoutSettings = {
   font_family: "gothic" | "mincho" | "system";
   vertical: boolean;
   columns: 1 | 2;
+  vertical_row_gap: number;
 };
 
 export type OverrideItem = {
