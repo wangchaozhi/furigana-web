@@ -50,6 +50,30 @@ def test_update_project_in_place(tmp_path, monkeypatch):
     assert len(db.list_projects()) == 1
 
 
+def test_project_preserves_translation_settings_and_lines(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "translations.sqlite3")
+    db.init_db()
+    project = db.save_project(
+        ProjectCreate(
+            title="双语",
+            source_text="明日",
+            translation_language="zh",
+            lines=[
+                AnnotatedLine(
+                    source="明日",
+                    translation="明天",
+                    segments=[Segment(text="明日", ruby="あした")],
+                )
+            ],
+        )
+    )
+
+    loaded = db.get_project(project.id)
+    assert loaded is not None
+    assert loaded.translation_language == "zh"
+    assert loaded.lines[0].translation == "明天"
+
+
 def test_delete_project_removes_its_scoped_rules(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "_DB_PATH", tmp_path / "delete.sqlite3")
     db.init_db()

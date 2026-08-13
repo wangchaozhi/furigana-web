@@ -41,6 +41,8 @@ def init_db() -> None:
         project_columns = {row[1] for row in conn.execute("PRAGMA table_info(projects)")}
         if "layout_json" not in project_columns:
             conn.execute("ALTER TABLE projects ADD COLUMN layout_json TEXT NOT NULL DEFAULT '{}'")
+        if "translation_language" not in project_columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN translation_language TEXT NOT NULL DEFAULT 'none'")
         columns = {row[1] for row in conn.execute("PRAGMA table_info(ruby_overrides)")}
         if columns and "scope" not in columns:
             conn.execute("ALTER TABLE ruby_overrides RENAME TO ruby_overrides_legacy")
@@ -158,10 +160,10 @@ def save_project(item: ProjectCreate) -> ProjectItem:
     with _LOCK, _connect() as conn:
         cur = conn.execute(
             """
-            INSERT INTO projects(title, artist, year, source_text, layout_json, lines_json)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO projects(title, artist, year, source_text, layout_json, translation_language, lines_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (item.title, item.artist, item.year, item.source_text, layout, payload),
+            (item.title, item.artist, item.year, item.source_text, layout, item.translation_language, payload),
         )
         project_id = int(cur.lastrowid)
         row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
@@ -174,9 +176,9 @@ def update_project(project_id: int, item: ProjectCreate) -> ProjectItem | None:
     with _LOCK, _connect() as conn:
         cur = conn.execute(
             """UPDATE projects
-               SET title=?, artist=?, year=?, source_text=?, layout_json=?, lines_json=?, updated_at=datetime('now')
+               SET title=?, artist=?, year=?, source_text=?, layout_json=?, translation_language=?, lines_json=?, updated_at=datetime('now')
                WHERE id=?""",
-            (item.title, item.artist, item.year, item.source_text, layout, payload, project_id),
+            (item.title, item.artist, item.year, item.source_text, layout, item.translation_language, payload, project_id),
         )
         if cur.rowcount == 0:
             return None

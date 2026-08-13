@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from . import db
 from .analyzer.sudachi import SudachiAnnotator
 from .exporters.docx import build_docx
+from .translator import configured_model, is_configured, translate_lines
 from .models import (
     AnnotateRequest,
     AnnotateResponse,
@@ -22,6 +23,9 @@ from .models import (
     ProjectCreate,
     ProjectItem,
     ProjectSummary,
+    TranslationRequest,
+    TranslationResponse,
+    TranslationStatus,
 )
 
 
@@ -54,6 +58,25 @@ def annotate(payload: AnnotateRequest) -> AnnotateResponse:
     overrides = db.list_applicable_overrides(payload.project_id)
     lines = app.state.annotator.annotate(payload.text, overrides)
     return AnnotateResponse(lines=lines)
+
+
+@app.get("/api/translation/status", response_model=TranslationStatus)
+def translation_status() -> TranslationStatus:
+    return TranslationStatus(enabled=is_configured(), model=configured_model())
+
+
+@app.post("/api/translate", response_model=TranslationResponse)
+def translate(payload: TranslationRequest) -> TranslationResponse:
+    if not is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Automatic translation is not configured. Set OPENAI_API_KEY on the API server.",
+        )
+    try:
+        translations = translate_lines(payload.lines, payload.target_language)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"Translation failed: {error}") from error
+    return TranslationResponse(translations=translations)
 
 
 @app.post("/api/export/docx")

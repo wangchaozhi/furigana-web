@@ -31,3 +31,20 @@ def test_docx_applies_layout_settings():
     assert 'w:val="tbRl"' in xml
     assert 'w:eastAsia="Yu Mincho"' in xml
     assert '<w:hpsBaseText w:val="40"' in xml
+
+
+def test_docx_includes_enabled_translation():
+    payload = ExportDocxRequest(
+        translation_language="zh",
+        lines=[
+            AnnotatedLine(
+                source="明日",
+                translation="明天",
+                segments=[Segment(text="明日", ruby="あした")],
+            )
+        ],
+    )
+    data = build_docx(payload)
+    with ZipFile(BytesIO(data)) as zf:
+        xml = zf.read("word/document.xml").decode("utf-8")
+    assert "明天" in xml

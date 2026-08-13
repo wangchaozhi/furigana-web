@@ -8,15 +8,17 @@ import {
   deleteOverride,
   deleteProject,
   exportDocx,
+  getTranslationStatus,
   getProject,
   listOverrides,
   listProjects,
   saveOverride,
   saveProject,
+  translateLines,
   updateOverride,
   updateProject,
 } from "@/lib/api";
-import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectSummary } from "@/lib/types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectSummary, TranslationLanguage } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
@@ -34,12 +36,14 @@ const DRAFT_KEY = "furigana-studio:draft:v1";
 export default function Home() {
   const [meta, setMeta] = useState<DocumentMeta>(EMPTY_META);
   const [layout, setLayout] = useState<LayoutSettings>(DEFAULT_LAYOUT);
+  const [translationLanguage, setTranslationLanguage] = useState<TranslationLanguage>("none");
+  const [translationStatus, setTranslationStatus] = useState<{ enabled: boolean; model: string } | null>(null);
   const [source, setSource] = useState("");
   const [lines, setLines] = useState<AnnotatedLine[]>([]);
   const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
   const [futureLines, setFutureLines] = useState<AnnotatedLine[][]>([]);
   const [selected, setSelected] = useState<Selection>(null);
-  const [busy, setBusy] = useState<"annotate" | "export" | "image" | "save" | null>(null);
+  const [busy, setBusy] = useState<"annotate" | "translate" | "export" | "image" | "save" | null>(null);
   const [message, setMessage] = useState("");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectPanel, setProjectPanel] = useState(false);
@@ -60,6 +64,13 @@ export default function Home() {
     setLines(next);
     setPastLines([]);
     setFutureLines([]);
+  }
+
+  function preserveTranslations(next: AnnotatedLine[]) {
+    return next.map((line, index) => ({
+      ...line,
+      translation: lines[index]?.source === line.source ? (lines[index].translation || "") : "",
+    }));
   }
 
   function undoRubyEdit() {
@@ -99,6 +110,7 @@ export default function Home() {
   useEffect(() => {
     refreshProjects();
     refreshOverrides();
+    getTranslationStatus().then(setTranslationStatus).catch(() => setTranslationStatus(null));
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -107,6 +119,7 @@ export default function Home() {
         source?: string;
         lines?: AnnotatedLine[];
         layout?: LayoutSettings;
+        translationLanguage?: TranslationLanguage;
         projectId?: number | null;
       };
       if (draft.source || draft.meta?.title) {
@@ -114,6 +127,7 @@ export default function Home() {
         setSource(draft.source || "");
         setFreshLines(draft.lines || []);
         setLayout(draft.layout || DEFAULT_LAYOUT);
+        setTranslationLanguage(draft.translationLanguage || "none");
         setCurrentProjectId(draft.projectId || null);
         flash("已恢复上次未完成的草稿");
       }
@@ -146,11 +160,11 @@ export default function Home() {
       }
       window.localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ meta, layout, source, lines, projectId: currentProjectId }),
+        JSON.stringify({ meta, layout, translationLanguage, source, lines, projectId: currentProjectId }),
       );
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [meta, layout, source, lines, currentProjectId]);
+  }, [meta, layout, translationLanguage, source, lines, currentProjectId]);
 
   function flash(text: string) {
     setMessage(text);
@@ -162,10 +176,39 @@ export default function Home() {
     setBusy("annotate");
     setSelected(null);
     try {
-      setFreshLines(await annotate(source, currentProjectId));
+      setFreshLines(preserveTranslations(await annotate(source, currentProjectId)));
       flash("标注完成");
     } catch (error) {
       flash(`标注失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function updateTranslation(lineIndex: number, translation: string) {
+    setLines((current) =>
+      current.map((line, index) => index === lineIndex ? { ...line, translation } : line),
+    );
+  }
+
+  async function handleTranslate(mode: "empty" | "all") {
+    if (translationLanguage === "none") return flash("请先选择中文或英文翻译");
+    if (!lines.length) return flash("请先完成振假名标注");
+    if (!translationStatus?.enabled) return flash("自动翻译未配置，请在 API 服务设置 OPENAI_API_KEY");
+    const targets = lines.map((line, index) => mode === "all" || !line.translation?.trim() ? index : -1)
+      .filter((index) => index >= 0);
+    if (!targets.length) return flash("没有需要翻译的空白行");
+    setBusy("translate");
+    try {
+      const sourceLines = targets.map((index) => lines[index].source);
+      const translated = await translateLines(sourceLines, translationLanguage);
+      setLines((current) => current.map((line, index) => {
+        const position = targets.indexOf(index);
+        return position >= 0 ? { ...line, translation: translated[position] || "" } : line;
+      }));
+      flash(`已完成 ${targets.length} 行${translationLanguage === "zh" ? "中文" : "英文"}翻译`);
+    } catch (error) {
+      flash(`翻译失败：${error instanceof Error ? error.message : "未知错误"}`);
     } finally {
       setBusy(null);
     }
@@ -233,7 +276,7 @@ export default function Home() {
       await deleteOverride(id);
       await refreshOverrides();
       if (source.trim() && lines.length) {
-        setFreshLines(await annotate(source, currentProjectId));
+        setFreshLines(preserveTranslations(await annotate(source, currentProjectId)));
         setSelected(null);
       }
       flash("规则已删除，当前预览已更新");
@@ -255,7 +298,7 @@ export default function Home() {
       setEditingOverride(null);
       await refreshOverrides();
       if (source.trim() && lines.length) {
-        setFreshLines(await annotate(source, currentProjectId));
+        setFreshLines(preserveTranslations(await annotate(source, currentProjectId)));
         setSelected(null);
       }
       flash("规则已修改，当前预览已更新");
@@ -319,7 +362,7 @@ export default function Home() {
         imported += 1;
       }
       await refreshOverrides();
-      if (source.trim() && lines.length) setFreshLines(await annotate(source, currentProjectId));
+      if (source.trim() && lines.length) setFreshLines(preserveTranslations(await annotate(source, currentProjectId)));
       flash(`已导入 ${imported} 条规则${skipped ? `，跳过 ${skipped} 条项目规则` : ""}`);
     } catch (error) {
       flash(`导入失败：${error instanceof Error ? error.message : "文件无法读取"}`);
@@ -330,7 +373,7 @@ export default function Home() {
     if (!lines.length) return flash("请先完成标注");
     setBusy("export");
     try {
-      const blob = await exportDocx(meta, layout, lines);
+      const blob = await exportDocx(meta, layout, translationLanguage, lines);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -394,7 +437,7 @@ export default function Home() {
     if (!source.trim() || !lines.length) return flash("请先输入并标注文本");
     setBusy("save");
     try {
-      const payload = { ...meta, layout, source_text: source, lines };
+      const payload = { ...meta, layout, translation_language: translationLanguage, source_text: source, lines };
       const project = currentProjectId
         ? await updateProject(currentProjectId, payload)
         : await saveProject(payload);
@@ -413,6 +456,7 @@ export default function Home() {
       const project = await getProject(id);
       setMeta({ title: project.title, artist: project.artist, year: project.year });
       setLayout(project.layout || DEFAULT_LAYOUT);
+      setTranslationLanguage(project.translation_language || "none");
       setSource(project.source_text);
       setFreshLines(project.lines);
       setCurrentProjectId(project.id);
@@ -433,6 +477,7 @@ export default function Home() {
   function reset() {
     setMeta(EMPTY_META);
     setLayout(DEFAULT_LAYOUT);
+    setTranslationLanguage("none");
     setSource("");
     setFreshLines([]);
     setSelected(null);
@@ -658,6 +703,68 @@ export default function Home() {
         </label>
       </section>
 
+      <section className="translationPanel card">
+        <div className="translationToolbar">
+          <div>
+            <span className="eyebrow">TRANSLATION</span>
+            <h2>逐句翻译</h2>
+          </div>
+          <label className="inlineField">
+            译文语言
+            <select
+              value={translationLanguage}
+              onChange={(event) => setTranslationLanguage(event.target.value as TranslationLanguage)}
+            >
+              <option value="none">不显示</option>
+              <option value="zh">中文</option>
+              <option value="en">英文</option>
+            </select>
+          </label>
+          <div className="translationActions">
+            <button
+              className="secondaryButton compactButton"
+              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.enabled}
+              onClick={() => handleTranslate("empty")}
+            >
+              {busy === "translate" ? "翻译中…" : "翻译空白行"}
+            </button>
+            <button
+              className="ghostButton compactButton"
+              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.enabled}
+              onClick={() => handleTranslate("all")}
+            >
+              重新翻译全部
+            </button>
+          </div>
+        </div>
+        {translationLanguage === "none" ? (
+          <p className="translationHint">选择中文或英文后，可逐句手工填写，译文会显示在日文下方。</p>
+        ) : !lines.length ? (
+          <p className="translationHint">完成自动标注后即可逐句编辑译文。</p>
+        ) : (
+          <>
+            <div className="translationList">
+              {lines.map((line, index) => (
+                <label className="translationItem" key={`${index}-${line.source}`}>
+                  <span>{line.source || "（空行）"}</span>
+                  <textarea
+                    value={line.translation || ""}
+                    onChange={(event) => updateTranslation(index, event.target.value)}
+                    placeholder={translationLanguage === "zh" ? "输入中文翻译…" : "Enter English translation…"}
+                    rows={1}
+                  />
+                </label>
+              ))}
+            </div>
+            <p className="translationHint">
+              {translationStatus?.enabled
+                ? `自动翻译已启用（${translationStatus.model}），所有译文都可以继续手动修改。`
+                : "自动翻译尚未配置；仍可手动填写。请在 API 服务的环境变量中设置 OPENAI_API_KEY。"}
+            </p>
+          </>
+        )}
+      </section>
+
       <section className="workspace">
         <div className="card editorCard">
           <div className="cardHead">
@@ -701,6 +808,7 @@ export default function Home() {
             ref={documentSheetRef}
             meta={meta}
             layout={layout}
+            translationLanguage={translationLanguage}
             lines={lines}
             selected={selected}
             onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}

@@ -8,7 +8,10 @@ export type Segment = {
 export type AnnotatedLine = {
   source: string;
   segments: Segment[];
+  translation?: string;
 };
+
+export type TranslationLanguage = "none" | "zh" | "en";
 
 export type DocumentMeta = {
   title: string;
@@ -47,5 +50,6 @@ export type ProjectSummary = {
 export type ProjectItem = ProjectSummary & {
   source_text: string;
   layout: LayoutSettings;
+  translation_language: TranslationLanguage;
   lines: AnnotatedLine[];
 };

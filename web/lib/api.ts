@@ -1,11 +1,17 @@
-import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectItem, ProjectSummary } from "./types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectItem, ProjectSummary, TranslationLanguage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 async function checked<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(body || `HTTP ${res.status}`);
+    try {
+      const parsed = JSON.parse(body) as { detail?: string };
+      throw new Error(parsed.detail || body || `HTTP ${res.status}`);
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error(body || `HTTP ${res.status}`);
+      throw error;
+    }
   }
   return res.json() as Promise<T>;
 }
@@ -20,14 +26,37 @@ export async function annotate(text: string, projectId?: number | null): Promise
   return data.lines;
 }
 
-export async function exportDocx(meta: DocumentMeta, layout: LayoutSettings, lines: AnnotatedLine[]): Promise<Blob> {
+export async function exportDocx(
+  meta: DocumentMeta,
+  layout: LayoutSettings,
+  translationLanguage: TranslationLanguage,
+  lines: AnnotatedLine[],
+): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/export/docx`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ meta, layout, lines }),
+    body: JSON.stringify({ meta, layout, translation_language: translationLanguage, lines }),
   });
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
   return res.blob();
+}
+
+export async function getTranslationStatus(): Promise<{ enabled: boolean; model: string }> {
+  const res = await fetch(`${API_BASE}/api/translation/status`, { cache: "no-store" });
+  return checked<{ enabled: boolean; model: string }>(res);
+}
+
+export async function translateLines(
+  lines: string[],
+  targetLanguage: Exclude<TranslationLanguage, "none">,
+): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lines, target_language: targetLanguage }),
+  });
+  const data = await checked<{ translations: string[] }>(res);
+  return data.translations;
 }
 
 export async function saveOverride(
@@ -83,6 +112,7 @@ export async function saveProject(payload: {
   year: string;
   source_text: string;
   layout: LayoutSettings;
+  translation_language: TranslationLanguage;
   lines: AnnotatedLine[];
 }): Promise<ProjectItem> {
   const res = await fetch(`${API_BASE}/api/projects`, {
@@ -101,6 +131,7 @@ export async function updateProject(
     year: string;
     source_text: string;
     layout: LayoutSettings;
+    translation_language: TranslationLanguage;
     lines: AnnotatedLine[];
   },
 ): Promise<ProjectItem> {

@@ -6,7 +6,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Mm, Pt
+from docx.shared import Mm, Pt, RGBColor
 
 from ..models import ExportDocxRequest, LayoutSettings, Segment
 
@@ -141,13 +141,20 @@ def build_docx(request: ExportDocxRequest) -> bytes:
 
     for line in request.lines:
         p = document.add_paragraph()
-        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.space_after = Pt(0 if line.translation and request.translation_language != "none" else 2)
         p.paragraph_format.line_spacing = request.layout.line_spacing
         if not line.segments:
             p.add_run("")
             continue
         for seg in line.segments:
             _append_segment(p, seg, request.layout, east_asia)
+        if line.translation and request.translation_language != "none":
+            translation = document.add_paragraph()
+            translation.paragraph_format.space_after = Pt(6)
+            translation.paragraph_format.line_spacing = 1.15
+            run = translation.add_run(line.translation)
+            _set_run_fonts(run, east_asia, max(9, request.layout.font_size * 0.72))
+            run.font.color.rgb = RGBColor(90, 90, 84)
 
     stream = BytesIO()
     document.save(stream)

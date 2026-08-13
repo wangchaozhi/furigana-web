@@ -1,20 +1,21 @@
 "use client";
 
 import { forwardRef, type CSSProperties } from "react";
-import type { AnnotatedLine, DocumentMeta, LayoutSettings } from "@/lib/types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, TranslationLanguage } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
 type Props = {
   meta: DocumentMeta;
   layout: LayoutSettings;
+  translationLanguage: TranslationLanguage;
   lines: AnnotatedLine[];
   selected: Selection;
   onSelect: (lineIndex: number, segmentIndex: number) => void;
 };
 
 const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
-  { meta, layout, lines, selected, onSelect },
+  { meta, layout, translationLanguage, lines, selected, onSelect },
   ref,
 ) {
   if (!lines.length) {
@@ -49,31 +50,38 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
 
         <div className={`documentLyrics ${layout.vertical ? "verticalLyrics" : ""}`}>
           {lines.map((line, lineIndex) => (
-            <div className="lyricsLine" key={`${lineIndex}-${line.source}`}>
-              {line.segments.length === 0 ? (
-                <span>&nbsp;</span>
-              ) : (
-                line.segments.map((segment, segmentIndex) => {
-                  const isSelected =
-                    selected?.lineIndex === lineIndex && selected?.segmentIndex === segmentIndex;
-                  const className = `segment ${segment.ruby ? "editable" : ""} ${(segment.candidates?.length || 0) > 1 ? "ambiguous" : ""} ${isSelected ? "selected" : ""}`;
+            <div className="bilingualLine" key={`${lineIndex}-${line.source}`}>
+              <div className="lyricsLine">
+                {line.segments.length === 0 ? (
+                  <span>&nbsp;</span>
+                ) : (
+                  line.segments.map((segment, segmentIndex) => {
+                    const isSelected =
+                      selected?.lineIndex === lineIndex && selected?.segmentIndex === segmentIndex;
+                    const className = `segment ${segment.ruby ? "editable" : ""} ${(segment.candidates?.length || 0) > 1 ? "ambiguous" : ""} ${isSelected ? "selected" : ""}`;
 
-                  return segment.ruby ? (
-                    <ruby
-                      className={className}
-                      key={`${lineIndex}-${segmentIndex}`}
-                      onClick={() => onSelect(lineIndex, segmentIndex)}
-                      title={(segment.candidates?.length || 0) > 1 ? `候选：${segment.candidates?.join(" / ")}` : "点击修改读音"}
-                    >
-                      {segment.text}
-                      <rt>{segment.ruby}</rt>
-                    </ruby>
-                  ) : (
-                    <span className={className} key={`${lineIndex}-${segmentIndex}`}>
-                      {segment.text}
-                    </span>
-                  );
-                })
+                    return segment.ruby ? (
+                      <ruby
+                        className={className}
+                        key={`${lineIndex}-${segmentIndex}`}
+                        onClick={() => onSelect(lineIndex, segmentIndex)}
+                        title={(segment.candidates?.length || 0) > 1 ? `候选：${segment.candidates?.join(" / ")}` : "点击修改读音"}
+                      >
+                        {segment.text}
+                        <rt>{segment.ruby}</rt>
+                      </ruby>
+                    ) : (
+                      <span className={className} key={`${lineIndex}-${segmentIndex}`}>
+                        {segment.text}
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+              {translationLanguage !== "none" && line.translation && (
+                <div className="translationLine" lang={translationLanguage === "zh" ? "zh-CN" : "en"}>
+                  {line.translation}
+                </div>
               )}
             </div>
           ))}

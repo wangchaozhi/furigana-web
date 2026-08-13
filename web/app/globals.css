@@ -62,6 +62,17 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .metaGrid {
   display: grid; grid-template-columns: 2fr 1.2fr .6fr; gap: 12px; padding: 14px; margin-bottom: 16px;
 }
+.translationPanel { margin-bottom: 16px; overflow: hidden; }
+.translationToolbar { display: flex; align-items: flex-end; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.translationToolbar > div:first-child { margin-right: auto; }
+.translationToolbar h2 { margin: 2px 0 0; font-size: 17px; }
+.inlineField { min-width: 130px; }
+.translationActions { display: flex; gap: 6px; padding-bottom: 1px; }
+.translationList { display: grid; gap: 7px; max-height: 330px; overflow: auto; padding: 14px 18px; }
+.translationItem { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.2fr); align-items: center; gap: 12px; }
+.translationItem > span { color: #494943; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.translationItem textarea { min-height: 39px; resize: vertical; padding: 9px 11px; line-height: 1.45; }
+.translationHint { margin: 0; padding: 11px 18px 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 label { display: flex; flex-direction: column; gap: 6px; color: #555; font-size: 12px; }
 input, textarea {
   width: 100%; border: 1px solid var(--line); outline: none; background: #fbfbf9; color: var(--text); border-radius: 10px;
@@ -122,11 +133,15 @@ input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(
   line-height: 1.5;
 }
 .documentLyrics { padding-top: 4px; }
+.bilingualLine { margin-bottom: 2px; }
 .lyricsLine { min-height: 43px; line-height: var(--doc-line-height, 2.5); font-size: var(--doc-font-size, 18px); white-space: pre-wrap; }
+.translationLine { margin: -7px 0 9px; color: #66665f; font-size: calc(var(--doc-font-size, 18px) * .72); line-height: 1.45; white-space: pre-wrap; }
 ruby { ruby-position: over; ruby-align: center; }
 rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; }
 .verticalLyrics { writing-mode: vertical-rl; height: 820px; width: 100%; overflow-x: auto; }
 .verticalLyrics .lyricsLine { min-width: 43px; min-height: 0; }
+.verticalLyrics .bilingualLine { display: flex; flex-direction: row; gap: 4px; }
+.verticalLyrics .translationLine { margin: 0; writing-mode: vertical-rl; }
 .segment.editable { border-radius: 4px; transition: background .12s ease; }
 .segment.editable:hover, .segment.selected { background: #efefe9; }
 .segment.ambiguous { text-decoration: underline dotted #b08a4a; text-underline-offset: 5px; }
@@ -212,6 +227,8 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .topbar { align-items: flex-start; }
   .workspace { grid-template-columns: 1fr; }
   .metaGrid { grid-template-columns: 1fr 1fr; }
+  .translationToolbar { flex-wrap: wrap; align-items: flex-end; }
+  .translationToolbar > div:first-child { width: 100%; }
   .metaGrid label:first-child { grid-column: 1 / -1; }
   .projectList { grid-template-columns: 1fr; }
   .ruleItem { grid-template-columns: minmax(130px, .7fr) minmax(180px, 1.3fr) auto; }
@@ -223,6 +240,8 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .topbar { flex-direction: column; }
   .topActions { width: 100%; justify-content: flex-start; }
   .metaGrid { grid-template-columns: 1fr; }
+  .translationItem { grid-template-columns: 1fr; gap: 5px; }
+  .translationActions { width: 100%; }
   .metaGrid label:first-child { grid-column: auto; }
   .sourceInput { height: 420px; }
   .previewScroll { min-height: 460px; padding: 14px 10px 100px; }
@@ -250,6 +269,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .rulePanel,
   .layoutPanel,
   .metaGrid,
+  .translationPanel,
   .editorCard,
   .previewCard > .cardHead,
   .rubyEditor,

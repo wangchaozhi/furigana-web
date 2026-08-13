@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Segment(BaseModel):
@@ -14,6 +14,7 @@ class Segment(BaseModel):
 class AnnotatedLine(BaseModel):
     source: str
     segments: list[Segment]
+    translation: str = ""
 
 
 class AnnotateRequest(BaseModel):
@@ -43,7 +44,31 @@ class LayoutSettings(BaseModel):
 class ExportDocxRequest(BaseModel):
     meta: DocumentMeta = Field(default_factory=DocumentMeta)
     layout: LayoutSettings = Field(default_factory=LayoutSettings)
+    translation_language: Literal["none", "zh", "en"] = "none"
     lines: list[AnnotatedLine]
+
+
+class TranslationRequest(BaseModel):
+    lines: list[str] = Field(min_length=1, max_length=500)
+    target_language: Literal["zh", "en"]
+
+    @field_validator("lines")
+    @classmethod
+    def validate_lines(cls, lines: list[str]) -> list[str]:
+        if any(len(line) > 2000 for line in lines):
+            raise ValueError("Each line must contain at most 2000 characters")
+        if sum(len(line) for line in lines) > 50_000:
+            raise ValueError("Translation input must contain at most 50000 characters")
+        return lines
+
+
+class TranslationResponse(BaseModel):
+    translations: list[str]
+
+
+class TranslationStatus(BaseModel):
+    enabled: bool
+    model: str
 
 
 class OverrideCreate(BaseModel):
@@ -69,6 +94,7 @@ class ProjectCreate(BaseModel):
     year: str = ""
     source_text: str
     layout: LayoutSettings = Field(default_factory=LayoutSettings)
+    translation_language: Literal["none", "zh", "en"] = "none"
     lines: list[AnnotatedLine]
 
 
