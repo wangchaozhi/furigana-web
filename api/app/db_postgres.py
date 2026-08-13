@@ -11,7 +11,7 @@ from .models import AnnotatedLine, LayoutSettings, OverrideCreate, OverrideItem,
 
 
 def _connect() -> psycopg.Connection:
-    return psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row)
+    return psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, prepare_threshold=None)
 
 
 def _serialized(row: dict) -> dict:
@@ -54,6 +54,22 @@ def init_db() -> None:
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ruby_overrides_identity
                 ON ruby_overrides(user_id, surface, scope, COALESCE(project_id, -1), context);
+            CREATE INDEX IF NOT EXISTS ruby_overrides_project_id ON ruby_overrides(project_id);
+            ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE ruby_overrides ENABLE ROW LEVEL SECURITY;
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+                    REVOKE ALL ON TABLE app_users, projects, ruby_overrides FROM anon;
+                    REVOKE ALL ON SEQUENCE projects_id_seq, ruby_overrides_id_seq FROM anon;
+                END IF;
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+                    REVOKE ALL ON TABLE app_users, projects, ruby_overrides FROM authenticated;
+                    REVOKE ALL ON SEQUENCE projects_id_seq, ruby_overrides_id_seq FROM authenticated;
+                END IF;
+            END
+            $$;
             """
         )
 

@@ -729,6 +729,7 @@ CORS_ORIGINS=https://a.example.com,https://b.example.com
 
 ```env
 DATABASE_URL=postgresql://...
+SKIP_DB_INIT=true
 AUTH_REQUIRED=true
 SUPABASE_URL=https://your-project.supabase.co
 CORS_ORIGINS=https://your-web.vercel.app

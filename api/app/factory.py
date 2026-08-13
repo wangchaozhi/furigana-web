@@ -35,7 +35,8 @@ from .translator import available_providers, get_provider, translate_lines
 def create_app(database: Any) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        database.init_db()
+        if os.getenv("SKIP_DB_INIT", "").lower() not in {"1", "true", "yes", "on"}:
+            database.init_db()
         app.state.annotator = SudachiAnnotator()
         yield
 

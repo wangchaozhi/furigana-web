@@ -34,3 +34,23 @@ CREATE TABLE IF NOT EXISTS ruby_overrides (
 
 CREATE UNIQUE INDEX IF NOT EXISTS ruby_overrides_identity
     ON ruby_overrides(user_id, surface, scope, COALESCE(project_id, -1), context);
+CREATE INDEX IF NOT EXISTS ruby_overrides_project_id ON ruby_overrides(project_id);
+
+-- The browser only uses Supabase Auth. Business data is accessed through the
+-- FastAPI service, so deny direct Data API access to these public tables.
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ruby_overrides ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE app_users, projects, ruby_overrides FROM anon;
+        REVOKE ALL ON SEQUENCE projects_id_seq, ruby_overrides_id_seq FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE app_users, projects, ruby_overrides FROM authenticated;
+        REVOKE ALL ON SEQUENCE projects_id_seq, ruby_overrides_id_seq FROM authenticated;
+    END IF;
+END
+$$;
