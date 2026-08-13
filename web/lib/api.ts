@@ -1,4 +1,4 @@
-import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectItem, ProjectSummary, TranslationLanguage } from "./types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -41,19 +41,20 @@ export async function exportDocx(
   return res.blob();
 }
 
-export async function getTranslationStatus(): Promise<{ enabled: boolean; model: string }> {
+export async function getTranslationStatus(): Promise<{ enabled: boolean; providers: TranslationProviderStatus[] }> {
   const res = await fetch(`${API_BASE}/api/translation/status`, { cache: "no-store" });
-  return checked<{ enabled: boolean; model: string }>(res);
+  return checked<{ enabled: boolean; providers: TranslationProviderStatus[] }>(res);
 }
 
 export async function translateLines(
   lines: string[],
   targetLanguage: Exclude<TranslationLanguage, "none">,
+  provider: TranslationProvider,
 ): Promise<string[]> {
   const res = await fetch(`${API_BASE}/api/translate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lines, target_language: targetLanguage }),
+    body: JSON.stringify({ lines, target_language: targetLanguage, provider }),
   });
   const data = await checked<{ translations: string[] }>(res);
   return data.translations;
