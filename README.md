@@ -28,6 +28,7 @@
 - 项目支持覆盖更新、重命名和浏览器自动草稿恢复。
 - 标题、作者/歌手、年份元数据。
 - 可调整字号、行距、振假名大小、页边距、字体以及横排/竖排，设置同步用于预览、PNG、打印和 Word。
+- 可选择中文或英文逐句译文，支持手工编辑；配置 OpenAI API Key 后可自动翻译空白行或重新翻译全部。
 - 导出 `.docx`，正文为原生 Word Ruby。
 - Docker Compose 一键启动。
 
@@ -93,6 +94,20 @@ furigana-web/
 
 ```bash
 docker compose up --build
+```
+
+也可以使用系统启动脚本，它会自动创建 `.env`、等待服务就绪并打开浏览器：
+
+Windows PowerShell：
+
+```powershell
+.\scripts\start-windows.ps1
+```
+
+macOS（终端运行或双击 Finder 中的文件）：
+
+```bash
+./scripts/start-macos.command
 ```
 
 启动后：
@@ -249,9 +264,21 @@ NEXT_PUBLIC_API_BASE_URL=https://your-api.example.com npm run dev
 6. 点击某个带振假名的汉字/汉字词，可以修改读音或选择词典候选。
 7. 对歌词特殊读法，可保存为 **当前句 / 当前项目 / 全局** 规则。
 8. 顶部 **读音规则** 可编辑、删除或导入/导出规则，**排版设置** 可调整成品样式。
-9. 点击 **下载 PNG** 可把当前成品页保存为图片。
-10. 点击 **打印** 可打开浏览器打印窗口；打印样式只保留成品内容。
-11. 点击 **导出 Word** 可生成原生 Word Ruby 的 `.docx`。
+9. 在 **逐句翻译** 中选择中文或英文，可手工编辑译文；配置 OpenAI 后可自动生成。
+10. 点击 **下载 PNG** 可把当前成品页保存为图片。
+11. 点击 **打印** 可打开浏览器打印窗口；打印样式只保留成品内容。
+12. 点击 **导出 Word** 可生成原生 Word Ruby 的 `.docx`，并包含已启用的译文。
+
+## 自动翻译配置
+
+自动翻译是可选功能，API Key 只由后端读取，不会发送到浏览器。复制 `.env.example` 为 `.env`，填写：
+
+```dotenv
+OPENAI_API_KEY=你的_API_Key
+OPENAI_TRANSLATION_MODEL=gpt-5.6-terra
+```
+
+然后重新启动服务。没有 API Key 时，中文/英文译文仍可逐句手工填写、保存和导出。
 
 导出的 Word 里没有“汉字上方振假名”之类说明行；标题后直接进入正文。
 
