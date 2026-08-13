@@ -62,6 +62,26 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .metaGrid {
   display: grid; grid-template-columns: 2fr 1.2fr .6fr; gap: 12px; padding: 14px; margin-bottom: 16px;
 }
+.lyricsLookup { margin-bottom: 16px; overflow: hidden; }
+.lyricsLookupHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 16px 18px 12px; }
+.lyricsLookupHead h2 { margin: 2px 0 0; font-size: 17px; }
+.lyricsLookupHead p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.sourceBadge { flex: 0 0 auto; padding: 5px 8px; color: #42604b; background: #e5f0e7; border-radius: 999px; font-size: 9px; letter-spacing: .1em; }
+.lyricsSearchForm { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, .7fr) auto; align-items: end; gap: 10px; padding: 0 18px 16px; }
+.lyricsSearchActions { display: flex; gap: 7px; }
+.googleLyricsLink { display: inline-flex; align-items: center; justify-content: center; color: var(--text); text-decoration: none; white-space: nowrap; }
+.lyricsResults { display: grid; gap: 7px; max-height: 420px; overflow: auto; padding: 0 18px 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.lyricsResult { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 11px; background: #f7f7f4; border: 1px solid #e8e8e2; border-radius: 11px; }
+.lyricsResultRank { color: #aaa; font-size: 10px; padding-top: 3px; }
+.lyricsResultInfo { min-width: 0; }
+.lyricsResultInfo strong, .lyricsResultInfo span, .lyricsResultInfo small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lyricsResultInfo strong { font-size: 13px; }
+.lyricsResultInfo span { margin-top: 2px; color: #555; font-size: 11px; }
+.lyricsResultInfo small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.lyricsResultInfo details { margin-top: 7px; }
+.lyricsResultInfo summary { width: fit-content; color: #555; cursor: pointer; font-size: 10px; }
+.lyricsResultInfo pre { max-height: 220px; overflow: auto; margin: 8px 0 0; padding: 10px; color: #444; background: white; border: 1px solid var(--line); border-radius: 8px; font-family: "Yu Gothic", sans-serif; font-size: 11px; line-height: 1.7; white-space: pre-wrap; }
+.lyricsEmpty { margin: 0; padding: 12px 18px 16px; color: var(--muted); border-top: 1px solid var(--line); font-size: 11px; }
 .translationPanel { margin-bottom: 16px; overflow: hidden; }
 .translationToolbar { display: flex; align-items: flex-end; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
 .translationToolbar > div:first-child { margin-right: auto; }
@@ -228,6 +248,8 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .topbar { align-items: flex-start; }
   .workspace { grid-template-columns: 1fr; }
   .metaGrid { grid-template-columns: 1fr 1fr; }
+  .lyricsSearchForm { grid-template-columns: 1fr 1fr; }
+  .lyricsSearchActions { grid-column: 1 / -1; }
   .translationToolbar { flex-wrap: wrap; align-items: flex-end; }
   .translationToolbar > div:first-child { width: 100%; }
   .metaGrid label:first-child { grid-column: 1 / -1; }
@@ -241,6 +263,10 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .topbar { flex-direction: column; }
   .topActions { width: 100%; justify-content: flex-start; }
   .metaGrid { grid-template-columns: 1fr; }
+  .lyricsSearchForm { grid-template-columns: 1fr; }
+  .lyricsSearchActions { grid-column: auto; flex-wrap: wrap; }
+  .lyricsResult { grid-template-columns: 26px minmax(0, 1fr); }
+  .lyricsResult > button { grid-column: 2; justify-self: start; }
   .translationItem { grid-template-columns: 1fr; gap: 5px; }
   .translationActions { width: 100%; }
   .metaGrid label:first-child { grid-column: auto; }
@@ -269,6 +295,7 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .projectPanel,
   .rulePanel,
   .layoutPanel,
+  .lyricsLookup,
   .metaGrid,
   .translationPanel,
   .editorCard,

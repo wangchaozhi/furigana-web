@@ -5,18 +5,20 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from . import db
 from .analyzer.sudachi import SudachiAnnotator
 from .exporters.docx import build_docx
+from .lyrics import search_lrclib
 from .translator import available_providers, get_provider, translate_lines
 from .models import (
     AnnotateRequest,
     AnnotateResponse,
     ExportDocxRequest,
+    LyricsSearchResponse,
     OverrideCreate,
     OverrideItem,
     OverrideUpdate,
@@ -58,6 +60,17 @@ def annotate(payload: AnnotateRequest) -> AnnotateResponse:
     overrides = db.list_applicable_overrides(payload.project_id)
     lines = app.state.annotator.annotate(payload.text, overrides)
     return AnnotateResponse(lines=lines)
+
+
+@app.get("/api/lyrics/search", response_model=LyricsSearchResponse)
+def search_lyrics(
+    track: str = Query(min_length=1, max_length=200),
+    artist: str = Query(default="", max_length=200),
+) -> LyricsSearchResponse:
+    try:
+        return LyricsSearchResponse(results=search_lrclib(track, artist))
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"歌词搜索失败：{error}") from error
 
 
 @app.get("/api/translation/status", response_model=TranslationStatus)

@@ -15,6 +15,16 @@ export type TranslationLanguage = "none" | "zh" | "en";
 export type TranslationProvider = "azure" | "libretranslate" | "baidu" | "youdao" | "google" | "deepl" | "openai";
 export type TranslationProviderStatus = { id: TranslationProvider; label: string; configured: boolean };
 
+export type LyricsSearchResult = {
+  id: number;
+  track_name: string;
+  artist_name: string;
+  album_name: string;
+  duration: number;
+  plain_lyrics: string;
+  has_synced_lyrics: boolean;
+};
+
 export type DocumentMeta = {
   title: string;
   artist: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RubyEditor from "@/components/RubyEditor";
 import RubyPreview from "@/components/RubyPreview";
 import {
@@ -14,11 +14,12 @@ import {
   listProjects,
   saveOverride,
   saveProject,
+  searchLyrics,
   translateLines,
   updateOverride,
   updateProject,
 } from "@/lib/api";
-import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
@@ -34,6 +35,12 @@ const DEFAULT_LAYOUT: LayoutSettings = {
 };
 const DRAFT_KEY = "furigana-studio:draft:v1";
 
+function formatDuration(seconds: number) {
+  if (!seconds) return "时长未知";
+  const rounded = Math.round(seconds);
+  return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
+}
+
 export default function Home() {
   const [meta, setMeta] = useState<DocumentMeta>(EMPTY_META);
   const [layout, setLayout] = useState<LayoutSettings>(DEFAULT_LAYOUT);
@@ -41,11 +48,15 @@ export default function Home() {
   const [translationProvider, setTranslationProvider] = useState<TranslationProvider>("openai");
   const [translationStatus, setTranslationStatus] = useState<{ enabled: boolean; providers: TranslationProviderStatus[] } | null>(null);
   const [source, setSource] = useState("");
+  const [lyricsTrack, setLyricsTrack] = useState("");
+  const [lyricsArtist, setLyricsArtist] = useState("");
+  const [lyricsResults, setLyricsResults] = useState<LyricsSearchResult[]>([]);
+  const [lyricsSearched, setLyricsSearched] = useState(false);
   const [lines, setLines] = useState<AnnotatedLine[]>([]);
   const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
   const [futureLines, setFutureLines] = useState<AnnotatedLine[][]>([]);
   const [selected, setSelected] = useState<Selection>(null);
-  const [busy, setBusy] = useState<"annotate" | "translate" | "export" | "image" | "save" | null>(null);
+  const [busy, setBusy] = useState<"annotate" | "lyrics" | "translate" | "export" | "image" | "save" | null>(null);
   const [message, setMessage] = useState("");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectPanel, setProjectPanel] = useState(false);
@@ -173,6 +184,40 @@ export default function Home() {
   function flash(text: string) {
     setMessage(text);
     window.setTimeout(() => setMessage(""), 2400);
+  }
+
+  async function handleLyricsSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const track = lyricsTrack.trim();
+    if (!track) return flash("请输入歌曲名");
+    setBusy("lyrics");
+    setLyricsSearched(false);
+    try {
+      const results = await searchLyrics(track, lyricsArtist);
+      setLyricsResults(results);
+      setLyricsSearched(true);
+      flash(results.length ? `找到 ${results.length} 个歌词版本` : "LRCLIB 暂无匹配歌词");
+    } catch (error) {
+      setLyricsResults([]);
+      setLyricsSearched(true);
+      flash(`歌词搜索失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function importLyrics(result: LyricsSearchResult) {
+    if (
+      source.trim()
+      && source.trim() !== result.plain_lyrics.trim()
+      && !window.confirm("导入歌词会覆盖当前原文，是否继续？")
+    ) return;
+    setSource(result.plain_lyrics.trim());
+    setMeta({ title: result.track_name, artist: result.artist_name, year: "" });
+    setFreshLines([]);
+    setSelected(null);
+    setCurrentProjectId(null);
+    flash(`已导入《${result.track_name}》，可以开始自动标注`);
   }
 
   async function handleAnnotate() {
@@ -484,6 +529,10 @@ export default function Home() {
     setLayout(DEFAULT_LAYOUT);
     setTranslationLanguage("none");
     setSource("");
+    setLyricsTrack("");
+    setLyricsArtist("");
+    setLyricsResults([]);
+    setLyricsSearched(false);
     setFreshLines([]);
     setSelected(null);
     setCurrentProjectId(null);
@@ -709,6 +758,80 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <section className="lyricsLookup card">
+        <div className="lyricsLookupHead">
+          <div>
+            <span className="eyebrow">LYRICS LOOKUP</span>
+            <h2>获取歌词</h2>
+            <p>从 LRCLIB 搜索并导入；没有合适结果时可转到 Google 查找后手工粘贴。</p>
+          </div>
+          <span className="sourceBadge">LRCLIB</span>
+        </div>
+        <form className="lyricsSearchForm" onSubmit={handleLyricsSearch}>
+          <label>
+            歌曲名
+            <input
+              value={lyricsTrack}
+              onChange={(event) => setLyricsTrack(event.target.value)}
+              placeholder="例如：ライトダンス"
+            />
+          </label>
+          <label>
+            歌手（可选）
+            <input
+              value={lyricsArtist}
+              onChange={(event) => setLyricsArtist(event.target.value)}
+              placeholder="例如：サカナクション"
+            />
+          </label>
+          <div className="lyricsSearchActions">
+            <button className="primaryButton" type="submit" disabled={!lyricsTrack.trim() || busy === "lyrics"}>
+              {busy === "lyrics" ? "搜索中…" : "搜索歌词"}
+            </button>
+            {lyricsTrack.trim() ? (
+              <a
+                className="ghostButton googleLyricsLink"
+                href={`https://www.google.com/search?q=${encodeURIComponent(`${lyricsTrack.trim()} ${lyricsArtist.trim()} 歌詞`.trim())}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google 备用搜索 ↗
+              </a>
+            ) : (
+              <button className="ghostButton" type="button" disabled>Google 备用搜索 ↗</button>
+            )}
+          </div>
+        </form>
+
+        {lyricsResults.length > 0 ? (
+          <div className="lyricsResults" aria-live="polite">
+            {lyricsResults.map((result, index) => (
+              <article className="lyricsResult" key={result.id}>
+                <div className="lyricsResultRank">{String(index + 1).padStart(2, "0")}</div>
+                <div className="lyricsResultInfo">
+                  <strong>{result.track_name}</strong>
+                  <span>{result.artist_name || "未知歌手"}</span>
+                  <small>
+                    {[result.album_name, formatDuration(result.duration), result.has_synced_lyrics ? "含时间轴" : "纯文本"]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </small>
+                  <details>
+                    <summary>预览歌词</summary>
+                    <pre>{result.plain_lyrics}</pre>
+                  </details>
+                </div>
+                <button className="secondaryButton compactButton" type="button" onClick={() => importLyrics(result)}>
+                  导入原文
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : lyricsSearched && busy !== "lyrics" ? (
+          <p className="lyricsEmpty">没有找到可导入的歌词，可以使用 Google 备用搜索后粘贴到原文框。</p>
+        ) : null}
+      </section>
 
       <section className="metaGrid card">
         <label>

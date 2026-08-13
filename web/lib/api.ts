@@ -1,4 +1,4 @@
-import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "./types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -24,6 +24,14 @@ export async function annotate(text: string, projectId?: number | null): Promise
   });
   const data = await checked<{ lines: AnnotatedLine[] }>(res);
   return data.lines;
+}
+
+export async function searchLyrics(track: string, artist = ""): Promise<LyricsSearchResult[]> {
+  const params = new URLSearchParams({ track });
+  if (artist.trim()) params.set("artist", artist.trim());
+  const res = await fetch(`${API_BASE}/api/lyrics/search?${params}`, { cache: "no-store" });
+  const data = await checked<{ results: LyricsSearchResult[] }>(res);
+  return data.results;
 }
 
 export async function exportDocx(

@@ -26,6 +26,20 @@ class AnnotateResponse(BaseModel):
     lines: list[AnnotatedLine]
 
 
+class LyricsSearchResult(BaseModel):
+    id: int
+    track_name: str
+    artist_name: str = ""
+    album_name: str = ""
+    duration: float = 0
+    plain_lyrics: str
+    has_synced_lyrics: bool = False
+
+
+class LyricsSearchResponse(BaseModel):
+    results: list[LyricsSearchResult]
+
+
 class DocumentMeta(BaseModel):
     title: str = ""
     artist: str = ""
