@@ -282,6 +282,34 @@ OPENAI_TRANSLATION_MODEL=gpt-5.6-terra
 
 然后重新启动服务。没有 API Key 时，中文/英文译文仍可逐句手工填写、保存和导出。
 
+自动翻译采用模块化引擎，可在界面中选择所有已配置的服务。除 OpenAI 外，也可以在 `.env` 中配置任意一组：
+
+```dotenv
+# Azure Translator
+AZURE_TRANSLATOR_KEY=
+AZURE_TRANSLATOR_REGION=
+
+# 自部署 LibreTranslate，例如 http://localhost:5000
+LIBRETRANSLATE_URL=
+LIBRETRANSLATE_API_KEY=
+
+# 百度翻译开放平台
+BAIDU_TRANSLATE_APP_ID=
+BAIDU_TRANSLATE_SECRET=
+
+# 有道智云
+YOUDAO_TRANSLATE_APP_KEY=
+YOUDAO_TRANSLATE_SECRET=
+
+# Google Cloud Translation Basic API Key
+GOOGLE_TRANSLATE_API_KEY=
+
+# DeepL API Free；Pro 用户可同时覆盖 DEEPL_API_URL
+DEEPL_API_KEY=
+```
+
+密钥仅由 API 服务读取。翻译状态接口只向浏览器返回引擎名称和是否已配置，不会返回密钥内容。
+
 导出的 Word 里没有“汉字上方振假名”之类说明行；标题后直接进入正文。
 
 ---

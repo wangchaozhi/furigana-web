@@ -12,6 +12,8 @@ export type AnnotatedLine = {
 };
 
 export type TranslationLanguage = "none" | "zh" | "en";
+export type TranslationProvider = "azure" | "libretranslate" | "baidu" | "youdao" | "google" | "deepl" | "openai";
+export type TranslationProviderStatus = { id: TranslationProvider; label: string; configured: boolean };
 
 export type DocumentMeta = {
   title: string;

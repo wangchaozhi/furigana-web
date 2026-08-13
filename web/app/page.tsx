@@ -18,7 +18,7 @@ import {
   updateOverride,
   updateProject,
 } from "@/lib/api";
-import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectSummary, TranslationLanguage } from "@/lib/types";
+import type { AnnotatedLine, DocumentMeta, LayoutSettings, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
 
@@ -37,7 +37,8 @@ export default function Home() {
   const [meta, setMeta] = useState<DocumentMeta>(EMPTY_META);
   const [layout, setLayout] = useState<LayoutSettings>(DEFAULT_LAYOUT);
   const [translationLanguage, setTranslationLanguage] = useState<TranslationLanguage>("none");
-  const [translationStatus, setTranslationStatus] = useState<{ enabled: boolean; model: string } | null>(null);
+  const [translationProvider, setTranslationProvider] = useState<TranslationProvider>("openai");
+  const [translationStatus, setTranslationStatus] = useState<{ enabled: boolean; providers: TranslationProviderStatus[] } | null>(null);
   const [source, setSource] = useState("");
   const [lines, setLines] = useState<AnnotatedLine[]>([]);
   const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
@@ -120,6 +121,7 @@ export default function Home() {
         lines?: AnnotatedLine[];
         layout?: LayoutSettings;
         translationLanguage?: TranslationLanguage;
+        translationProvider?: TranslationProvider;
         projectId?: number | null;
       };
       if (draft.source || draft.meta?.title) {
@@ -128,6 +130,7 @@ export default function Home() {
         setFreshLines(draft.lines || []);
         setLayout(draft.layout || DEFAULT_LAYOUT);
         setTranslationLanguage(draft.translationLanguage || "none");
+        setTranslationProvider(draft.translationProvider || "openai");
         setCurrentProjectId(draft.projectId || null);
         flash("已恢复上次未完成的草稿");
       }
@@ -160,11 +163,11 @@ export default function Home() {
       }
       window.localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ meta, layout, translationLanguage, source, lines, projectId: currentProjectId }),
+        JSON.stringify({ meta, layout, translationLanguage, translationProvider, source, lines, projectId: currentProjectId }),
       );
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [meta, layout, translationLanguage, source, lines, currentProjectId]);
+  }, [meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
 
   function flash(text: string) {
     setMessage(text);
@@ -194,14 +197,15 @@ export default function Home() {
   async function handleTranslate(mode: "empty" | "all") {
     if (translationLanguage === "none") return flash("请先选择中文或英文翻译");
     if (!lines.length) return flash("请先完成振假名标注");
-    if (!translationStatus?.enabled) return flash("自动翻译未配置，请在 API 服务设置 OPENAI_API_KEY");
+    const selectedProvider = translationStatus?.providers.find((item) => item.id === translationProvider);
+    if (!selectedProvider?.configured) return flash(`${selectedProvider?.label || "所选翻译引擎"}尚未配置`);
     const targets = lines.map((line, index) => mode === "all" || !line.translation?.trim() ? index : -1)
       .filter((index) => index >= 0);
     if (!targets.length) return flash("没有需要翻译的空白行");
     setBusy("translate");
     try {
       const sourceLines = targets.map((index) => lines[index].source);
-      const translated = await translateLines(sourceLines, translationLanguage);
+      const translated = await translateLines(sourceLines, translationLanguage, translationProvider);
       setLines((current) => current.map((line, index) => {
         const position = targets.indexOf(index);
         return position >= 0 ? { ...line, translation: translated[position] || "" } : line;
@@ -720,17 +724,25 @@ export default function Home() {
               <option value="en">英文</option>
             </select>
           </label>
+          <label className="inlineField">
+            翻译引擎
+            <select value={translationProvider} onChange={(event) => setTranslationProvider(event.target.value as TranslationProvider)}>
+              {(translationStatus?.providers || []).map((provider) => (
+                <option key={provider.id} value={provider.id}>{provider.label}{provider.configured ? "" : "（未配置）"}</option>
+              ))}
+            </select>
+          </label>
           <div className="translationActions">
             <button
               className="secondaryButton compactButton"
-              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.enabled}
+              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
               onClick={() => handleTranslate("empty")}
             >
               {busy === "translate" ? "翻译中…" : "翻译空白行"}
             </button>
             <button
               className="ghostButton compactButton"
-              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.enabled}
+              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
               onClick={() => handleTranslate("all")}
             >
               重新翻译全部
@@ -757,9 +769,9 @@ export default function Home() {
               ))}
             </div>
             <p className="translationHint">
-              {translationStatus?.enabled
-                ? `自动翻译已启用（${translationStatus.model}），所有译文都可以继续手动修改。`
-                : "自动翻译尚未配置；仍可手动填写。请在 API 服务的环境变量中设置 OPENAI_API_KEY。"}
+              {translationStatus?.providers.find((item) => item.id === translationProvider)?.configured
+                ? `已启用${translationStatus.providers.find((item) => item.id === translationProvider)?.label}，所有译文都可以继续手动修改。`
+                : "所选翻译引擎尚未配置；仍可手动填写。请在 API 服务中设置对应环境变量。"}
             </p>
           </>
         )}

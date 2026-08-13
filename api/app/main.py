@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from . import db
 from .analyzer.sudachi import SudachiAnnotator
 from .exporters.docx import build_docx
-from .translator import configured_model, is_configured, translate_lines
+from .translator import available_providers, get_provider, translate_lines
 from .models import (
     AnnotateRequest,
     AnnotateResponse,
@@ -62,18 +62,20 @@ def annotate(payload: AnnotateRequest) -> AnnotateResponse:
 
 @app.get("/api/translation/status", response_model=TranslationStatus)
 def translation_status() -> TranslationStatus:
-    return TranslationStatus(enabled=is_configured(), model=configured_model())
+    providers = available_providers()
+    return TranslationStatus(enabled=any(bool(item["configured"]) for item in providers), providers=providers)
 
 
 @app.post("/api/translate", response_model=TranslationResponse)
 def translate(payload: TranslationRequest) -> TranslationResponse:
-    if not is_configured():
+    provider = get_provider(payload.provider)
+    if not provider.configured:
         raise HTTPException(
             status_code=503,
-            detail="Automatic translation is not configured. Set OPENAI_API_KEY on the API server.",
+            detail=f"{provider.label} is not configured on the API server.",
         )
     try:
-        translations = translate_lines(payload.lines, payload.target_language)
+        translations = translate_lines(payload.lines, payload.target_language, payload.provider)
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"Translation failed: {error}") from error
     return TranslationResponse(translations=translations)

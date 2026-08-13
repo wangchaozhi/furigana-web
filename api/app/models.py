@@ -51,6 +51,7 @@ class ExportDocxRequest(BaseModel):
 class TranslationRequest(BaseModel):
     lines: list[str] = Field(min_length=1, max_length=500)
     target_language: Literal["zh", "en"]
+    provider: Literal["azure", "libretranslate", "baidu", "youdao", "google", "deepl", "openai"] = "openai"
 
     @field_validator("lines")
     @classmethod
@@ -68,7 +69,7 @@ class TranslationResponse(BaseModel):
 
 class TranslationStatus(BaseModel):
     enabled: bool
-    model: str
+    providers: list[dict[str, str | bool]]
 
 
 class OverrideCreate(BaseModel):
