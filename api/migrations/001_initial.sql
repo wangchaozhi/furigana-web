@@ -52,5 +52,9 @@ BEGIN
         REVOKE ALL ON TABLE app_users, projects, ruby_overrides FROM authenticated;
         REVOKE ALL ON SEQUENCE projects_id_seq, ruby_overrides_id_seq FROM authenticated;
     END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE app_users, projects, ruby_overrides TO service_role;
+        GRANT USAGE, SELECT ON SEQUENCE projects_id_seq, ruby_overrides_id_seq TO service_role;
+    END IF;
 END
 $$;
