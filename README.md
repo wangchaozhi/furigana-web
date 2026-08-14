@@ -186,7 +186,7 @@ chmod +x scripts/dev-macos.command
 ./scripts/dev-macos.command
 ```
 
-脚本会首次创建 `api/.venv`、检查依赖并同时启动前后端。前端支持热更新，后端使用 Uvicorn 自动重载。脚本优先使用 Web 端口 3000 和 API 端口 8000；端口被 Docker 或其他程序占用时会自动向后寻找可用端口，并同步配置前端 API 地址和后端 CORS。Windows 会打开两个服务窗口，关闭它们即可停止；macOS 在启动终端按 `Ctrl+C` 即可同时停止。
+脚本会首次创建 `api/.venv`、检查依赖并同时启动前后端。前端支持热更新，后端使用 Uvicorn 自动重载。脚本优先使用 Web 端口 3000 和 API 端口 8000；端口被 Docker 或其他程序占用时会自动向后寻找可用端口，并同步配置前端 API 地址和后端 CORS。Windows 再次运行脚本时会自动停止该项目上一次启动的开发进程、清理必要的 Next.js 开发缓存并重新启动，运行日志保存在 `data/dev-*.log`；macOS 在启动终端按 `Ctrl+C` 即可同时停止。
 
 以下是等效的手动启动步骤：
 

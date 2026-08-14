@@ -16,6 +16,8 @@ npm-debug.log*
 # Runtime data
 data/*.sqlite3
 data/*.sqlite3-*
+data/.dev-processes.json
+data/dev-*.log
 
 # OS / editor
 .DS_Store
