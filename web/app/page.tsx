@@ -696,7 +696,7 @@ export default function Home() {
             读音规则{overrides.length ? ` (${overrides.length})` : ""}
           </button>
           <button className="ghostButton" onClick={reset}>新建</button>
-          <button className="secondaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
+          <button className="primaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
             {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
           </button>
           </>}
