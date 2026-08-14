@@ -695,19 +695,9 @@ export default function Home() {
           >
             读音规则{overrides.length ? ` (${overrides.length})` : ""}
           </button>
-          <button className="ghostButton" onClick={() => setLayoutPanel((value) => !value)}>排版设置</button>
           <button className="ghostButton" onClick={reset}>新建</button>
           <button className="secondaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
             {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
-          </button>
-          <button className="ghostButton" disabled={!lines.length} onClick={handlePrint}>
-            打印
-          </button>
-          <button className="secondaryButton" disabled={!lines.length || busy === "image"} onClick={handleDownloadImage}>
-            {busy === "image" ? "生成中…" : "下载 PNG"}
-          </button>
-          <button className="primaryButton" disabled={!lines.length || busy === "export"} onClick={handleExport}>
-            {busy === "export" ? "生成中…" : "导出 Word"}
           </button>
           </>}
           {authRequired && authUser && (
@@ -884,86 +874,6 @@ export default function Home() {
         </section>
       )}
 
-      {layoutPanel && (
-        <section className="layoutPanel card">
-          <div className="panelTitle">
-            <div>
-              <strong>排版设置</strong>
-              <span>同步应用到预览、PNG、打印和 Word</span>
-            </div>
-            <button className="ghostButton compactButton" onClick={() => setLayout(DEFAULT_LAYOUT)}>恢复默认</button>
-          </div>
-          <div className="layoutGrid">
-            <label>
-              正文字号 <output>{layout.font_size}px</output>
-              <input type="range" min="12" max="32" value={layout.font_size} onChange={(event) => setLayout({ ...layout, font_size: Number(event.target.value) })} />
-            </label>
-            <label>
-              行距 <output>{layout.line_spacing.toFixed(1)}</output>
-              <input type="range" min="1.2" max="4" step="0.1" value={layout.line_spacing} onChange={(event) => setLayout({ ...layout, line_spacing: Number(event.target.value) })} />
-            </label>
-            <label>
-              振假名大小 <output>{Math.round(layout.ruby_scale * 100)}%</output>
-              <input type="range" min="0.35" max="0.9" step="0.05" value={layout.ruby_scale} onChange={(event) => setLayout({ ...layout, ruby_scale: Number(event.target.value) })} />
-            </label>
-            <label>
-              页边距 <output>{layout.page_margin}px</output>
-              <input type="range" min="16" max="96" value={layout.page_margin} onChange={(event) => setLayout({ ...layout, page_margin: Number(event.target.value) })} />
-            </label>
-            <label>
-              字体
-              <select value={layout.font_family} onChange={(event) => setLayout({ ...layout, font_family: event.target.value as LayoutSettings["font_family"] })}>
-                <option value="gothic">日文黑体</option>
-                <option value="mincho">日文明朝体</option>
-                <option value="system">系统字体</option>
-              </select>
-            </label>
-            <label>
-              排列方向
-              <select
-                value={layout.vertical ? "vertical" : "horizontal"}
-                onChange={(event) => {
-                  const vertical = event.target.value === "vertical";
-                  setLayout({ ...layout, vertical });
-                }}
-              >
-                <option value="horizontal">横排</option>
-                <option value="vertical">竖排</option>
-              </select>
-            </label>
-            <label>
-              {layout.vertical ? "竖排换列" : "正文分栏"}
-              <select
-                value={layout.vertical ? "auto" : String(layout.columns)}
-                disabled={layout.vertical}
-                onChange={(event) => setLayout({ ...layout, columns: Number(event.target.value) as LayoutSettings["columns"] })}
-              >
-                {layout.vertical ? (
-                    <option value="auto">排满后向下换组</option>
-                ) : (
-                  <>
-                    <option value="1">单栏</option>
-                    <option value="2">双栏</option>
-                  </>
-                )}
-              </select>
-            </label>
-            <label>
-              竖排组间距 <output>{layout.vertical_row_gap}px</output>
-              <input
-                type="range"
-                min="0"
-                max="160"
-                step="4"
-                value={layout.vertical_row_gap}
-                disabled={!layout.vertical}
-                onChange={(event) => setLayout({ ...layout, vertical_row_gap: Number(event.target.value) })}
-              />
-            </label>
-          </div>
-        </section>
-      )}
-
       <section className="lyricsLookup card">
         <div className="lyricsLookupHead">
           <div>
@@ -1053,7 +963,7 @@ export default function Home() {
         </label>
       </section>
 
-      <section className="workspace">
+      <section className={`workspace${layoutPanel ? " layoutEditing" : ""}`}>
         <div className="card editorCard">
           <div className="cardHead">
             <div>
@@ -1084,23 +994,135 @@ export default function Home() {
           <div className="cardHead">
             <div>
               <span className="eyebrow">02 / REVIEW</span>
-              <h2>振假名预览</h2>
+              <div className="previewTitleRow">
+                <h2>振假名预览</h2>
+                <div className="previewHelp">
+                  <button
+                    type="button"
+                    className="previewHelpButton"
+                    aria-label="查看振假名编辑提示"
+                    aria-describedby="preview-help-tip"
+                  >
+                    <span aria-hidden="true">i</span>
+                  </button>
+                  <div id="preview-help-tip" className="previewHelpPopover" role="tooltip">
+                    点击预览中的振假名即可修改读音。
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="reviewActions">
               <button className="ghostButton compactButton" disabled={!pastLines.length} onClick={undoRubyEdit}>撤销</button>
               <button className="ghostButton compactButton" disabled={!futureLines.length} onClick={redoRubyEdit}>重做</button>
-              <span className="hintPill">点击振假名可修改</span>
+              <button
+                className={`ghostButton compactButton${layoutPanel ? " activeButton" : ""}`}
+                aria-expanded={layoutPanel}
+                aria-controls="preview-layout-panel"
+                onClick={() => setLayoutPanel((value) => !value)}
+              >
+                排版设置
+              </button>
+              <div className="previewOutputActions">
+                <button className="ghostButton compactButton" disabled={!lines.length} onClick={handlePrint}>打印</button>
+                <button className="secondaryButton compactButton" disabled={!lines.length || busy === "image"} onClick={handleDownloadImage}>
+                  {busy === "image" ? "生成中…" : "下载 PNG"}
+                </button>
+                <button className="primaryButton compactButton" disabled={!lines.length || busy === "export"} onClick={handleExport}>
+                  {busy === "export" ? "生成中…" : "导出 Word"}
+                </button>
+              </div>
             </div>
           </div>
-          <RubyPreview
-            ref={documentSheetRef}
-            meta={meta}
-            layout={layout}
-            translationLanguage={translationLanguage}
-            lines={lines}
-            selected={selected}
-            onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
-          />
+          <div className={`previewBody${layoutPanel ? " hasLayoutPanel" : ""}`}>
+            <RubyPreview
+              ref={documentSheetRef}
+              meta={meta}
+              layout={layout}
+              translationLanguage={translationLanguage}
+              lines={lines}
+              selected={selected}
+              onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
+            />
+            {layoutPanel && (
+              <aside id="preview-layout-panel" className="layoutPanel previewLayoutPanel" aria-label="排版设置">
+                <div className="panelTitle">
+                  <div>
+                    <strong>排版设置</strong>
+                    <span>实时应用到预览、PNG、打印和 Word</span>
+                  </div>
+                  <div className="layoutPanelActions">
+                    <button className="ghostButton compactButton" onClick={() => setLayout(DEFAULT_LAYOUT)}>恢复默认</button>
+                    <button className="iconButton layoutCloseButton" aria-label="关闭排版设置" onClick={() => setLayoutPanel(false)}>×</button>
+                  </div>
+                </div>
+                <div className="layoutGrid">
+                  <label>
+                    正文字号 <output>{layout.font_size}px</output>
+                    <input type="range" min="12" max="32" value={layout.font_size} onChange={(event) => setLayout({ ...layout, font_size: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    行距 <output>{layout.line_spacing.toFixed(1)}</output>
+                    <input type="range" min="1.2" max="4" step="0.1" value={layout.line_spacing} onChange={(event) => setLayout({ ...layout, line_spacing: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    振假名大小 <output>{Math.round(layout.ruby_scale * 100)}%</output>
+                    <input type="range" min="0.35" max="0.9" step="0.05" value={layout.ruby_scale} onChange={(event) => setLayout({ ...layout, ruby_scale: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    页边距 <output>{layout.page_margin}px</output>
+                    <input type="range" min="16" max="96" value={layout.page_margin} onChange={(event) => setLayout({ ...layout, page_margin: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    字体
+                    <select value={layout.font_family} onChange={(event) => setLayout({ ...layout, font_family: event.target.value as LayoutSettings["font_family"] })}>
+                      <option value="gothic">日文黑体</option>
+                      <option value="mincho">日文明朝体</option>
+                      <option value="system">系统字体</option>
+                    </select>
+                  </label>
+                  <label>
+                    排列方向
+                    <select
+                      value={layout.vertical ? "vertical" : "horizontal"}
+                      onChange={(event) => setLayout({ ...layout, vertical: event.target.value === "vertical" })}
+                    >
+                      <option value="horizontal">横排</option>
+                      <option value="vertical">竖排</option>
+                    </select>
+                  </label>
+                  <label>
+                    {layout.vertical ? "竖排换列" : "正文分栏"}
+                    <select
+                      value={layout.vertical ? "auto" : String(layout.columns)}
+                      disabled={layout.vertical}
+                      onChange={(event) => setLayout({ ...layout, columns: Number(event.target.value) as LayoutSettings["columns"] })}
+                    >
+                      {layout.vertical ? (
+                        <option value="auto">排满后向下换组</option>
+                      ) : (
+                        <>
+                          <option value="1">单栏</option>
+                          <option value="2">双栏</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    竖排组间距 <output>{layout.vertical_row_gap}px</output>
+                    <input
+                      type="range"
+                      min="0"
+                      max="160"
+                      step="4"
+                      value={layout.vertical_row_gap}
+                      disabled={!layout.vertical}
+                      onChange={(event) => setLayout({ ...layout, vertical_row_gap: Number(event.target.value) })}
+                    />
+                  </label>
+                </div>
+              </aside>
+            )}
+          </div>
           {selected && (
             <RubyEditor
               lines={lines}
