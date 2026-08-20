@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RubyEditor from "@/components/RubyEditor";
 import RubyPreview from "@/components/RubyPreview";
 import SocialLoginButtons from "@/components/SocialLoginButtons";
+import { useRubyHistory } from "@/hooks/useRubyHistory";
 import {
   annotate,
   deleteOverride,
@@ -24,6 +25,7 @@ import {
   updateProject,
 } from "@/lib/api";
 import { cloudAuthEnabled, getSupabaseClient, oauthProviders, type OAuthProvider } from "@/lib/auth";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/draft";
 import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
@@ -39,8 +41,6 @@ const DEFAULT_LAYOUT: LayoutSettings = {
   columns: 1,
   vertical_row_gap: 24,
 };
-const DRAFT_KEY = "furigana-studio:draft:v1";
-
 function formatDuration(seconds: number) {
   if (!seconds) return "时长未知";
   const rounded = Math.round(seconds);
@@ -58,9 +58,16 @@ export default function Home() {
   const [lyricsArtist, setLyricsArtist] = useState("");
   const [lyricsResults, setLyricsResults] = useState<LyricsSearchResult[]>([]);
   const [lyricsSearched, setLyricsSearched] = useState(false);
-  const [lines, setLines] = useState<AnnotatedLine[]>([]);
-  const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
-  const [futureLines, setFutureLines] = useState<AnnotatedLine[][]>([]);
+  const {
+    lines,
+    canUndo,
+    canRedo,
+    resetLines: setFreshLines,
+    replaceLines: setLines,
+    commitLines,
+    undo: undoRubyEdit,
+    redo: redoRubyEdit,
+  } = useRubyHistory();
   const [selected, setSelected] = useState<Selection>(null);
   const [busy, setBusy] = useState<"annotate" | "lyrics" | "translate" | "export" | "image" | "save" | null>(null);
   const [message, setMessage] = useState("");
@@ -80,6 +87,7 @@ export default function Home() {
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
+  const messageTimerRef = useRef<number | null>(null);
   const authUserId = authUser?.id || "local";
 
   const selectedSegment = useMemo(() => {
@@ -87,11 +95,9 @@ export default function Home() {
     return lines[selected.lineIndex]?.segments[selected.segmentIndex] || null;
   }, [lines, selected]);
 
-  function setFreshLines(next: AnnotatedLine[]) {
-    setLines(next);
-    setPastLines([]);
-    setFutureLines([]);
-  }
+  useEffect(() => () => {
+    if (messageTimerRef.current !== null) window.clearTimeout(messageTimerRef.current);
+  }, []);
 
   function preserveTranslations(next: AnnotatedLine[]) {
     return next.map((line, index) => ({
@@ -99,24 +105,6 @@ export default function Home() {
       translation: lines[index]?.source === line.source ? (lines[index].translation || "") : "",
     }));
   }
-
-  const undoRubyEdit = useCallback(() => {
-    if (!pastLines.length) return;
-    const previous = pastLines[pastLines.length - 1];
-    setPastLines(pastLines.slice(0, -1));
-    setFutureLines((future) => [lines, ...future].slice(0, 50));
-    setLines(previous);
-    setSelected(null);
-  }, [lines, pastLines]);
-
-  const redoRubyEdit = useCallback(() => {
-    if (!futureLines.length) return;
-    const next = futureLines[0];
-    setFutureLines(futureLines.slice(1));
-    setPastLines((past) => [...past.slice(-49), lines]);
-    setLines(next);
-    setSelected(null);
-  }, [futureLines, lines]);
 
   async function refreshProjects() {
     try {
@@ -201,17 +189,8 @@ export default function Home() {
     refreshOverrides();
     getTranslationStatus().then(setTranslationStatus).catch(() => setTranslationStatus(null));
     try {
-      const raw = window.localStorage.getItem(`${DRAFT_KEY}:${authUserId}`);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        meta?: DocumentMeta;
-        source?: string;
-        lines?: AnnotatedLine[];
-        layout?: LayoutSettings;
-        translationLanguage?: TranslationLanguage;
-        translationProvider?: TranslationProvider;
-        projectId?: number | null;
-      };
+      const draft = loadDraft(window.localStorage, authUserId);
+      if (!draft) return;
       if (draft.source || draft.meta?.title) {
         setMeta(draft.meta || EMPTY_META);
         setSource(draft.source || "");
@@ -223,45 +202,56 @@ export default function Home() {
         flash("已恢复上次未完成的草稿");
       }
     } catch {
-      window.localStorage.removeItem(`${DRAFT_KEY}:${authUserId}`);
+      clearDraft(window.localStorage, authUserId);
     }
-  }, [authReady, authRequired, authUser, authUserId]);
+  }, [authReady, authRequired, authUser, authUserId, setFreshLines]);
 
   useEffect(() => {
     function handleHistoryShortcut(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
-      if (key === "z" && !event.shiftKey && pastLines.length) {
+      if (key === "z" && !event.shiftKey && canUndo) {
         event.preventDefault();
         undoRubyEdit();
-      } else if ((key === "y" || (key === "z" && event.shiftKey)) && futureLines.length) {
+        setSelected(null);
+      } else if ((key === "y" || (key === "z" && event.shiftKey)) && canRedo) {
         event.preventDefault();
         redoRubyEdit();
+        setSelected(null);
       }
     }
     window.addEventListener("keydown", handleHistoryShortcut);
     return () => window.removeEventListener("keydown", handleHistoryShortcut);
-  }, [futureLines.length, pastLines.length, redoRubyEdit, undoRubyEdit]);
+  }, [canRedo, canUndo, redoRubyEdit, undoRubyEdit]);
 
   useEffect(() => {
     if (!authReady || (authRequired && !authUser)) return;
     const timer = window.setTimeout(() => {
-      const draftKey = `${DRAFT_KEY}:${authUserId}`;
       if (!source && !meta.title && !meta.artist && !meta.year && !lines.length) {
-        window.localStorage.removeItem(draftKey);
+        clearDraft(window.localStorage, authUserId);
         return;
       }
-      window.localStorage.setItem(
-        draftKey,
-        JSON.stringify({ meta, layout, translationLanguage, translationProvider, source, lines, projectId: currentProjectId }),
-      );
+      const saved = saveDraft(window.localStorage, authUserId, {
+        meta,
+        layout,
+        translationLanguage,
+        translationProvider,
+        source,
+        lines,
+        projectId: currentProjectId,
+      });
+      if (!saved) setMessage("浏览器存储空间不足，草稿未能自动保存");
     }, 600);
     return () => window.clearTimeout(timer);
   }, [authReady, authRequired, authUser, authUserId, meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
 
   function flash(text: string) {
+    if (messageTimerRef.current !== null) window.clearTimeout(messageTimerRef.current);
     setMessage(text);
-    window.setTimeout(() => setMessage(""), 2400);
+    messageTimerRef.current = window.setTimeout(() => {
+      setMessage("");
+      messageTimerRef.current = null;
+    }, 2400);
   }
 
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
@@ -416,9 +406,7 @@ export default function Home() {
               ),
             },
       );
-    setPastLines((past) => [...past.slice(-49), lines]);
-    setFutureLines([]);
-    setLines(next);
+    commitLines(next);
   }
 
   async function handleSaveOverride(context: string, reading: string, scope: OverrideItem["scope"]) {
@@ -682,7 +670,7 @@ export default function Home() {
     setFreshLines([]);
     setSelected(null);
     setCurrentProjectId(null);
-    window.localStorage.removeItem(`${DRAFT_KEY}:${authUserId}`);
+    clearDraft(window.localStorage, authUserId);
   }
 
   return (
@@ -1024,8 +1012,8 @@ export default function Home() {
               </div>
             </div>
             <div className="reviewActions">
-              <button className="ghostButton compactButton" disabled={!pastLines.length} onClick={undoRubyEdit}>撤销</button>
-              <button className="ghostButton compactButton" disabled={!futureLines.length} onClick={redoRubyEdit}>重做</button>
+              <button className="ghostButton compactButton" disabled={!canUndo} onClick={() => { undoRubyEdit(); setSelected(null); }}>撤销</button>
+              <button className="ghostButton compactButton" disabled={!canRedo} onClick={() => { redoRubyEdit(); setSelected(null); }}>重做</button>
               <button
                 className={`ghostButton compactButton${layoutPanel ? " activeButton" : ""}`}
                 aria-expanded={layoutPanel}
