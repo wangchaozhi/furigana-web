@@ -425,33 +425,38 @@ export default function Home() {
     if (!selected || !selectedSegment?.text || !reading) return;
     const surface = selectedSegment.text;
     const normalizedReading = reading.trim();
-    await saveOverride(surface, normalizedReading, context, scope, currentProjectId);
+    try {
+      await saveOverride(surface, normalizedReading, context, scope, currentProjectId);
 
-    // Keep all matching occurrences in the current preview in sync immediately.
-    setFreshLines(
-      lines.map((line) =>
-        scope === "sentence" && context && !line.source.includes(context)
-          ? line
-          : {
-              ...line,
-              segments: line.segments.map((segment) =>
-                segment.text === surface
-                  ? {
-                      ...segment,
-                      ruby: normalizedReading,
-                      candidates: [normalizedReading, ...(segment.candidates || []).filter((item) => item !== normalizedReading)],
-                      confidence: "high",
-                    }
-                  : segment,
-              ),
-            },
-      ),
-    );
-    await refreshOverrides();
-    flash(`已保存「${surface} → ${normalizedReading}」，当前预览已同步`);
+      // Keep all matching occurrences in the current preview in sync immediately.
+      setFreshLines(
+        lines.map((line) =>
+          scope === "sentence" && context && !line.source.includes(context)
+            ? line
+            : {
+                ...line,
+                segments: line.segments.map((segment) =>
+                  segment.text === surface
+                    ? {
+                        ...segment,
+                        ruby: normalizedReading,
+                        candidates: [normalizedReading, ...(segment.candidates || []).filter((item) => item !== normalizedReading)],
+                        confidence: "high",
+                      }
+                    : segment,
+                ),
+              },
+        ),
+      );
+      await refreshOverrides();
+      flash(`已保存「${surface} → ${normalizedReading}」，当前预览已同步`);
+    } catch (error) {
+      flash(`保存规则失败：${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
 
   async function removeOverride(id: number) {
+    if (!window.confirm("确定删除这条读音规则吗？")) return;
     try {
       await deleteOverride(id);
       await refreshOverrides();
@@ -654,9 +659,15 @@ export default function Home() {
   }
 
   async function removeProject(id: number) {
-    await deleteProject(id);
-    if (currentProjectId === id) setCurrentProjectId(null);
-    await refreshProjects();
+    if (!window.confirm("确定删除这个项目吗？此操作无法撤销。")) return;
+    try {
+      await deleteProject(id);
+      if (currentProjectId === id) setCurrentProjectId(null);
+      await refreshProjects();
+      flash("项目已删除");
+    } catch (error) {
+      flash(`删除失败：${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
 
   function reset() {

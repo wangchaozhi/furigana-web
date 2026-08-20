@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app import db
 from app.factory import create_app
+from app.models import MAX_TEXT_LENGTH
 
 
 def test_local_mode_exposes_authenticated_features(tmp_path, monkeypatch):
@@ -56,3 +57,19 @@ def test_cloud_mode_syncs_users_and_isolates_api_data(tmp_path, monkeypatch):
         assert len(client.get("/api/projects", headers=alice).json()) == 1
         assert client.get("/api/projects", headers=bob).json() == []
         assert client.get(f"/api/projects/{created.json()['id']}", headers=bob).status_code == 404
+
+
+def test_expensive_endpoints_reject_oversized_payloads(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "limits.sqlite3")
+    monkeypatch.setenv("AUTH_REQUIRED", "false")
+    oversized = "日" * (MAX_TEXT_LENGTH + 1)
+
+    with TestClient(create_app(db)) as client:
+        annotate_response = client.post("/api/annotate", json={"text": oversized})
+        project_response = client.post(
+            "/api/projects",
+            json={"source_text": oversized, "lines": []},
+        )
+
+    assert annotate_response.status_code == 422
+    assert project_response.status_code == 422

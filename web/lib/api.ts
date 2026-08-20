@@ -1,16 +1,35 @@
 import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const DEFAULT_TIMEOUT_MS = 30_000;
 let accessToken = "";
+
+type RequestOptions = RequestInit & { timeoutMs?: number };
 
 export function setAccessToken(token: string | null) {
   accessToken = token || "";
 }
 
-async function request(input: RequestInfo | URL, init: RequestInit = {}) {
-  const headers = new Headers(init.headers);
+async function request(input: RequestInfo | URL, init: RequestOptions = {}) {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: callerSignal, ...requestInit } = init;
+  const headers = new Headers(requestInit.headers);
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  return globalThis.fetch(input, { ...init, headers });
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await globalThis.fetch(input, { ...requestInit, headers, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted && !callerSignal?.aborted) {
+      throw new Error("请求超时，请稍后重试");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  }
 }
 
 export async function getAuthConfig(): Promise<{ required: boolean }> {
@@ -22,17 +41,18 @@ export async function getCurrentUser(): Promise<{ id: string; email: string }> {
 }
 
 async function checked<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.text();
-    try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      throw new Error(parsed.detail || body || `HTTP ${res.status}`);
-    } catch (error) {
-      if (error instanceof SyntaxError) throw new Error(body || `HTTP ${res.status}`);
-      throw error;
-    }
-  }
+  if (!res.ok) throw await responseError(res);
   return res.json() as Promise<T>;
+}
+
+async function responseError(res: Response): Promise<Error> {
+  const body = await res.text();
+  try {
+    const parsed = JSON.parse(body) as { detail?: string };
+    return new Error(parsed.detail || body || `HTTP ${res.status}`);
+  } catch {
+    return new Error(body || `HTTP ${res.status}`);
+  }
 }
 
 export async function annotate(text: string, projectId?: number | null): Promise<AnnotatedLine[]> {
@@ -63,8 +83,9 @@ export async function exportDocx(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ meta, layout, translation_language: translationLanguage, lines }),
+    timeoutMs: 60_000,
   });
-  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  if (!res.ok) throw await responseError(res);
   return res.blob();
 }
 
@@ -82,6 +103,7 @@ export async function translateLines(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ lines, target_language: targetLanguage, provider }),
+    timeoutMs: 90_000,
   });
   const data = await checked<{ translations: string[] }>(res);
   return data.translations;
@@ -109,7 +131,7 @@ export async function listOverrides(): Promise<OverrideItem[]> {
 
 export async function deleteOverride(id: number): Promise<void> {
   const res = await request(`${API_BASE}/api/overrides/${id}`, { method: "DELETE" });
-  if (!res.ok && res.status !== 204) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  if (!res.ok && res.status !== 204) throw await responseError(res);
 }
 
 export async function updateOverride(
@@ -173,5 +195,5 @@ export async function updateProject(
 
 export async function deleteProject(id: number): Promise<void> {
   const res = await request(`${API_BASE}/api/projects/${id}`, { method: "DELETE" });
-  if (!res.ok && res.status !== 204) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  if (!res.ok && res.status !== 204) throw await responseError(res);
 }

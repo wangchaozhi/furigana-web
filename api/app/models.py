@@ -1,24 +1,29 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
+
+MAX_TEXT_LENGTH = 100_000
+MAX_DOCUMENT_LINES = 5_000
+MAX_SEGMENTS_PER_LINE = 2_000
+ReadingCandidate = Annotated[str, Field(max_length=500)]
 
 
 class Segment(BaseModel):
-    text: str
-    ruby: Optional[str] = None
-    candidates: list[str] = Field(default_factory=list)
+    text: str = Field(max_length=5_000)
+    ruby: Optional[str] = Field(default=None, max_length=500)
+    candidates: list[ReadingCandidate] = Field(default_factory=list, max_length=50)
     confidence: Optional[Literal["high", "medium", "low"]] = None
 
 
 class AnnotatedLine(BaseModel):
-    source: str
-    segments: list[Segment]
-    translation: str = ""
+    source: str = Field(max_length=10_000)
+    segments: list[Segment] = Field(max_length=MAX_SEGMENTS_PER_LINE)
+    translation: str = Field(default="", max_length=10_000)
 
 
 class AnnotateRequest(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
     project_id: Optional[int] = None
 
 
@@ -41,9 +46,9 @@ class LyricsSearchResponse(BaseModel):
 
 
 class DocumentMeta(BaseModel):
-    title: str = ""
-    artist: str = ""
-    year: str = ""
+    title: str = Field(default="", max_length=300)
+    artist: str = Field(default="", max_length=300)
+    year: str = Field(default="", max_length=50)
 
 
 class LayoutSettings(BaseModel):
@@ -61,7 +66,7 @@ class ExportDocxRequest(BaseModel):
     meta: DocumentMeta = Field(default_factory=DocumentMeta)
     layout: LayoutSettings = Field(default_factory=LayoutSettings)
     translation_language: Literal["none", "zh", "en"] = "none"
-    lines: list[AnnotatedLine]
+    lines: list[AnnotatedLine] = Field(max_length=MAX_DOCUMENT_LINES)
 
 
 class TranslationRequest(BaseModel):
@@ -89,9 +94,9 @@ class TranslationStatus(BaseModel):
 
 
 class OverrideCreate(BaseModel):
-    surface: str = Field(min_length=1)
-    reading: str = Field(min_length=1)
-    context: str = ""
+    surface: str = Field(min_length=1, max_length=200)
+    reading: str = Field(min_length=1, max_length=500)
+    context: str = Field(default="", max_length=10_000)
     scope: Literal["sentence", "project", "global"] = "sentence"
     project_id: Optional[int] = None
 
@@ -106,13 +111,13 @@ class OverrideUpdate(OverrideCreate):
 
 
 class ProjectCreate(BaseModel):
-    title: str = ""
-    artist: str = ""
-    year: str = ""
-    source_text: str
+    title: str = Field(default="", max_length=300)
+    artist: str = Field(default="", max_length=300)
+    year: str = Field(default="", max_length=50)
+    source_text: str = Field(max_length=MAX_TEXT_LENGTH)
     layout: LayoutSettings = Field(default_factory=LayoutSettings)
     translation_language: Literal["none", "zh", "en"] = "none"
-    lines: list[AnnotatedLine]
+    lines: list[AnnotatedLine] = Field(max_length=MAX_DOCUMENT_LINES)
 
 
 class ProjectItem(ProjectCreate):
