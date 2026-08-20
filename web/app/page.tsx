@@ -176,6 +176,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!authReady || (authRequired && !authUser)) return;
+    // The authenticated identity owns every piece of workspace state, so an identity change must reset it atomically.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProjects([]);
     setOverrides([]);
     setMeta(EMPTY_META);
@@ -696,7 +698,7 @@ export default function Home() {
             读音规则{overrides.length ? ` (${overrides.length})` : ""}
           </button>
           <button className="ghostButton" onClick={reset}>新建</button>
-          <button className="primaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
+          <button className="primaryButton" disabled={!lines.length || busy !== null} onClick={handleSaveProject}>
             {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
           </button>
           </>}
@@ -901,7 +903,7 @@ export default function Home() {
             />
           </label>
           <div className="lyricsSearchActions">
-            <button className="primaryButton" type="submit" disabled={!lyricsTrack.trim() || busy === "lyrics"}>
+            <button className="primaryButton" type="submit" disabled={!lyricsTrack.trim() || busy !== null}>
               {busy === "lyrics" ? "搜索中…" : "搜索歌词"}
             </button>
             {lyricsTrack.trim() ? (
@@ -970,7 +972,7 @@ export default function Home() {
               <span className="eyebrow">01 / INPUT</span>
               <h2>原文</h2>
             </div>
-            <button className="primaryButton" disabled={busy === "annotate"} onClick={handleAnnotate}>
+            <button className="primaryButton" disabled={busy !== null} onClick={handleAnnotate}>
               {busy === "annotate" ? "分析中…" : lines.length ? "重新标注" : "自动标注"}
             </button>
           </div>
@@ -1024,10 +1026,10 @@ export default function Home() {
               </button>
               <div className="previewOutputActions">
                 <button className="ghostButton compactButton" disabled={!lines.length} onClick={handlePrint}>打印</button>
-                <button className="secondaryButton compactButton" disabled={!lines.length || busy === "image"} onClick={handleDownloadImage}>
+                <button className="secondaryButton compactButton" disabled={!lines.length || busy !== null} onClick={handleDownloadImage}>
                   {busy === "image" ? "生成中…" : "下载 PNG"}
                 </button>
-                <button className="primaryButton compactButton" disabled={!lines.length || busy === "export"} onClick={handleExport}>
+                <button className="primaryButton compactButton" disabled={!lines.length || busy !== null} onClick={handleExport}>
                   {busy === "export" ? "生成中…" : "导出 Word"}
                 </button>
               </div>
@@ -1125,6 +1127,7 @@ export default function Home() {
           </div>
           {selected && (
             <RubyEditor
+              key={`${selected.lineIndex}-${selected.segmentIndex}`}
               lines={lines}
               selected={selected}
               projectId={currentProjectId}
@@ -1164,14 +1167,14 @@ export default function Home() {
           <div className="translationActions">
             <button
               className="secondaryButton compactButton"
-              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
+              disabled={translationLanguage === "none" || !lines.length || busy !== null || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
               onClick={() => handleTranslate("empty")}
             >
               {busy === "translate" ? "翻译中…" : "翻译空白行"}
             </button>
             <button
               className="ghostButton compactButton"
-              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
+              disabled={translationLanguage === "none" || !lines.length || busy !== null || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
               onClick={() => handleTranslate("all")}
             >
               重新翻译全部
@@ -1211,7 +1214,7 @@ export default function Home() {
       </footer>
       </>}
 
-      {message && <div className="toast">{message}</div>}
+      {message && <div className="toast" role="status" aria-live="polite">{message}</div>}
       <style>{`@media print { @page { margin: ${(layout.page_margin * 0.32).toFixed(1)}mm; } }`}</style>
     </main>
   );

@@ -71,6 +71,15 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
                         className={className}
                         key={`${lineIndex}-${segmentIndex}`}
                         onClick={() => onSelect(lineIndex, segmentIndex)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onSelect(lineIndex, segmentIndex);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`编辑「${segment.text}」的读音，当前为「${segment.ruby}」`}
                         title={(segment.candidates?.length || 0) > 1 ? `候选：${segment.candidates?.join(" / ")}` : "点击修改读音"}
                       >
                         {segment.text}

@@ -121,6 +121,14 @@ input, textarea {
 select { border: 1px solid var(--line); outline: none; background: #fbfbf9; color: var(--text); border-radius: 9px; padding: 8px 10px; }
 input { padding: 11px 12px; }
 input:focus, textarea:focus { border-color: #9a9a94; box-shadow: 0 0 0 3px rgba(50, 50, 45, .06); }
+button:focus-visible, a:focus-visible, select:focus-visible, ruby[role="button"]:focus-visible {
+  outline: 3px solid rgba(35, 85, 180, .45);
+  outline-offset: 3px;
+}
+ruby[role="button"] { cursor: pointer; }
+.errorPage { max-width: 620px; margin: 80px auto; padding: 40px; text-align: center; }
+.errorPage h1 { margin: 10px 0; }
+.errorPage p { margin: 0 0 22px; color: var(--muted); line-height: 1.7; }
 
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .workspace.layoutEditing { grid-template-columns: minmax(320px, .65fr) minmax(0, 1.35fr); }

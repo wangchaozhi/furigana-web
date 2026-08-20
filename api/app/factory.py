@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -31,6 +34,8 @@ from .models import (
 )
 from .translator import available_providers, get_provider, translate_lines
 
+logger = logging.getLogger("furigana.api")
+
 
 def create_app(database: Any) -> FastAPI:
     @asynccontextmanager
@@ -51,6 +56,27 @@ def create_app(database: Any) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def request_observability(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", "")[:100] or uuid.uuid4().hex
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception("request_failed method=%s path=%s request_id=%s", request.method, request.url.path, request_id)
+            raise
+        duration_ms = (time.perf_counter() - started) * 1000
+        response.headers["X-Request-ID"] = request_id
+        logger.info(
+            "request_completed method=%s path=%s status=%s duration_ms=%.1f request_id=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            request_id,
+        )
+        return response
 
     def identified_user(user: CurrentUser = Depends(current_user)) -> CurrentUser:
         database.ensure_user(user.id, user.email)

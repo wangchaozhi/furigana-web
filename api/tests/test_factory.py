@@ -13,7 +13,9 @@ def test_local_mode_exposes_authenticated_features(tmp_path, monkeypatch):
     monkeypatch.setenv("AUTH_REQUIRED", "false")
     with TestClient(create_app(db)) as client:
         assert client.get("/api/auth/config").json() == {"required": False}
-        assert client.get("/api/auth/me").json()["id"] == "local"
+        me_response = client.get("/api/auth/me", headers={"X-Request-ID": "test-request"})
+        assert me_response.json()["id"] == "local"
+        assert me_response.headers["X-Request-ID"] == "test-request"
         assert client.get("/api/projects").status_code == 200
 
 

@@ -54,4 +54,23 @@ describe("RubyPreview", () => {
     await userEvent.click(screen.getByText("明日"));
     expect(onSelect).toHaveBeenCalledWith(0, 0);
   });
+
+  it("lets keyboard users select a ruby segment", async () => {
+    const onSelect = vi.fn();
+    render(
+      <RubyPreview
+        meta={{ title: "", artist: "", year: "" }}
+        layout={layout}
+        translationLanguage="none"
+        lines={[{ source: "明日", segments: [{ text: "明日", ruby: "あした" }] }]}
+        selected={null}
+        onSelect={onSelect}
+      />,
+    );
+
+    const ruby = screen.getByRole("button", { name: /编辑「明日」的读音/ });
+    ruby.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(0, 0);
+  });
 });
