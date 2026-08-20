@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RubyEditor from "@/components/RubyEditor";
 import RubyPreview from "@/components/RubyPreview";
 import SocialLoginButtons from "@/components/SocialLoginButtons";
@@ -80,6 +80,7 @@ export default function Home() {
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
+  const authUserId = authUser?.id || "local";
 
   const selectedSegment = useMemo(() => {
     if (!selected) return null;
@@ -99,23 +100,23 @@ export default function Home() {
     }));
   }
 
-  function undoRubyEdit() {
+  const undoRubyEdit = useCallback(() => {
     if (!pastLines.length) return;
     const previous = pastLines[pastLines.length - 1];
     setPastLines(pastLines.slice(0, -1));
     setFutureLines((future) => [lines, ...future].slice(0, 50));
     setLines(previous);
     setSelected(null);
-  }
+  }, [lines, pastLines]);
 
-  function redoRubyEdit() {
+  const redoRubyEdit = useCallback(() => {
     if (!futureLines.length) return;
     const next = futureLines[0];
     setFutureLines(futureLines.slice(1));
     setPastLines((past) => [...past.slice(-49), lines]);
     setLines(next);
     setSelected(null);
-  }
+  }, [futureLines, lines]);
 
   async function refreshProjects() {
     try {
@@ -200,7 +201,7 @@ export default function Home() {
     refreshOverrides();
     getTranslationStatus().then(setTranslationStatus).catch(() => setTranslationStatus(null));
     try {
-      const raw = window.localStorage.getItem(`${DRAFT_KEY}:${authUser?.id || "local"}`);
+      const raw = window.localStorage.getItem(`${DRAFT_KEY}:${authUserId}`);
       if (!raw) return;
       const draft = JSON.parse(raw) as {
         meta?: DocumentMeta;
@@ -222,9 +223,9 @@ export default function Home() {
         flash("已恢复上次未完成的草稿");
       }
     } catch {
-      window.localStorage.removeItem(`${DRAFT_KEY}:${authUser?.id || "local"}`);
+      window.localStorage.removeItem(`${DRAFT_KEY}:${authUserId}`);
     }
-  }, [authReady, authRequired, authUser?.id]);
+  }, [authReady, authRequired, authUser, authUserId]);
 
   useEffect(() => {
     function handleHistoryShortcut(event: KeyboardEvent) {
@@ -240,12 +241,12 @@ export default function Home() {
     }
     window.addEventListener("keydown", handleHistoryShortcut);
     return () => window.removeEventListener("keydown", handleHistoryShortcut);
-  }, [pastLines, futureLines, lines]);
+  }, [futureLines.length, pastLines.length, redoRubyEdit, undoRubyEdit]);
 
   useEffect(() => {
     if (!authReady || (authRequired && !authUser)) return;
     const timer = window.setTimeout(() => {
-      const draftKey = `${DRAFT_KEY}:${authUser?.id || "local"}`;
+      const draftKey = `${DRAFT_KEY}:${authUserId}`;
       if (!source && !meta.title && !meta.artist && !meta.year && !lines.length) {
         window.localStorage.removeItem(draftKey);
         return;
@@ -256,7 +257,7 @@ export default function Home() {
       );
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [authReady, authRequired, authUser?.id, meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
+  }, [authReady, authRequired, authUser, authUserId, meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
 
   function flash(text: string) {
     setMessage(text);
@@ -670,7 +671,7 @@ export default function Home() {
     setFreshLines([]);
     setSelected(null);
     setCurrentProjectId(null);
-    window.localStorage.removeItem(`${DRAFT_KEY}:${authUser?.id || "local"}`);
+    window.localStorage.removeItem(`${DRAFT_KEY}:${authUserId}`);
   }
 
   return (
