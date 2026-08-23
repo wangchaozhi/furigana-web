@@ -1,6 +1,6 @@
 {
   "name": "furigana-web",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
     "html-to-image": "^1.11.13",
+    "jspdf": "4.2.1",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"

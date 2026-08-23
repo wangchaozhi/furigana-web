@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import { cloudAuthEnabled, getSupabaseClient, oauthProviders, type OAuthProvider } from "@/lib/auth";
 import { clearDraft, loadDraft, saveDraft } from "@/lib/draft";
+import { calculateA4PdfLayout, calculateSafePdfBreakpoints, createA4PdfFromCanvas } from "@/lib/pdf";
 import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
@@ -69,7 +70,7 @@ export default function Home() {
     redo: redoRubyEdit,
   } = useRubyHistory();
   const [selected, setSelected] = useState<Selection>(null);
-  const [busy, setBusy] = useState<"annotate" | "lyrics" | "translate" | "export" | "image" | "save" | null>(null);
+  const [busy, setBusy] = useState<"annotate" | "lyrics" | "translate" | "export" | "image" | "pdf" | "save" | null>(null);
   const [message, setMessage] = useState("");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectPanel, setProjectPanel] = useState(false);
@@ -633,6 +634,61 @@ export default function Home() {
     }
   }
 
+  async function handleDownloadPdf() {
+    if (!lines.length || !documentSheetRef.current) return flash("请先完成标注");
+    const node = documentSheetRef.current;
+    const { pageMarginMm, captureWidthPx } = calculateA4PdfLayout(layout.page_margin);
+    setBusy("pdf");
+    setSelected(null);
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+      node.style.setProperty("--pdf-capture-width", `${captureWidthPx}px`);
+      node.style.setProperty("--pdf-column-rows", String(Math.ceil(lines.length / 2)));
+      node.classList.add("exporting", "exportingPdf");
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const captureWidth = node.offsetWidth;
+      const captureHeight = Math.max(node.scrollHeight, node.offsetHeight);
+      const rootTop = node.getBoundingClientRect().top;
+      const lineRanges = Array.from(node.querySelectorAll<HTMLElement>(".bilingualLine"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { top: rect.top - rootTop, bottom: rect.bottom - rootTop };
+        });
+      const { toCanvas } = await import("html-to-image");
+      const canvas = await toCanvas(node, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        width: captureWidth,
+        height: captureHeight,
+      });
+      const canvasScale = canvas.height / captureHeight;
+      const breakpoints = calculateSafePdfBreakpoints(lineRanges)
+        .map((breakpoint) => breakpoint * canvasScale);
+      const blob = await createA4PdfFromCanvas(canvas, {
+        title: meta.title.trim() || "furigana",
+        pageMarginMm,
+        breakpoints,
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${safeFileName(meta.title)}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      flash("PDF 已生成");
+    } catch (error) {
+      flash(`PDF 生成失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      node.classList.remove("exporting", "exportingPdf");
+      node.style.removeProperty("--pdf-capture-width");
+      node.style.removeProperty("--pdf-column-rows");
+      setBusy(null);
+    }
+  }
+
   function handlePrint() {
     if (!lines.length) return flash("请先完成标注");
     setSelected(null);
@@ -1051,6 +1107,17 @@ export default function Home() {
                 排版设置
               </button>
               <div className="previewOutputActions">
+                <button
+                  className="ghostButton compactButton printButton"
+                  type="button"
+                  disabled={!lines.length || busy !== null}
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    handlePrint();
+                  }}
+                >
+                  打印
+                </button>
                 <div className="exportMenu" ref={exportMenuRef}>
                   <button
                     ref={exportButtonRef}
@@ -1061,7 +1128,7 @@ export default function Home() {
                     aria-controls="export-format-menu"
                     onClick={() => setExportMenuOpen((open) => !open)}
                   >
-                    {busy === "image" ? "生成 PNG…" : busy === "export" ? "生成 Word…" : "导出"}
+                    {busy === "image" ? "生成 PNG…" : busy === "export" ? "生成 Word…" : busy === "pdf" ? "生成 PDF…" : "导出"}
                     <span className="exportChevron" aria-hidden="true">▾</span>
                   </button>
                   {exportMenuOpen && (
@@ -1099,12 +1166,12 @@ export default function Home() {
                         type="button"
                         onClick={() => {
                           setExportMenuOpen(false);
-                          handlePrint();
+                          void handleDownloadPdf();
                         }}
                       >
                         <span className="exportMenuItemText">
                           <strong>PDF 文档</strong>
-                          <small>在打印窗口中选择“另存为 PDF”</small>
+                          <small>直接下载分页后的 A4 文件</small>
                         </span>
                         <span className="exportExtension">.pdf</span>
                       </button>
@@ -1129,7 +1196,7 @@ export default function Home() {
                 <div className="panelTitle">
                   <div>
                     <strong>排版设置</strong>
-                    <span>实时应用到预览、PNG、打印和 Word</span>
+                    <span>实时应用到预览、PNG、PDF、打印和 Word</span>
                   </div>
                   <div className="layoutPanelActions">
                     <button className="ghostButton compactButton" onClick={() => setLayout(DEFAULT_LAYOUT)}>恢复默认</button>
@@ -1289,7 +1356,7 @@ export default function Home() {
       </section>
 
       <footer>
-        通过导出菜单下载 PNG、Word，或使用 A4 打印保存 PDF；Word 使用原生 WordprocessingML <code>w:ruby</code>。
+        通过导出菜单下载 PNG、Word 和 A4 PDF，也可直接打印；Word 使用原生 WordprocessingML <code>w:ruby</code>。
       </footer>
       </>}
 

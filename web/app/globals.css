@@ -294,6 +294,43 @@ rt { font-size: var(--doc-ruby-size, .55em); line-height: 1; user-select: none; 
 .segment.editable:hover, .segment.selected { background: #efefe9; }
 .segment.ambiguous { text-decoration: underline dotted #b08a4a; text-underline-offset: 5px; }
 .documentSheet.exporting .segment.ambiguous { text-decoration: none; }
+.documentSheet.exportingPdf {
+  width: var(--pdf-capture-width, 682px);
+  max-width: none;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  overflow-wrap: anywhere;
+}
+.documentSheet.exportingPdf .documentLyrics:not(.verticalLyrics) .bilingualLine {
+  margin-bottom: 0;
+  padding-bottom: 2px;
+}
+.documentSheet.exportingPdf .documentLyrics:not(.verticalLyrics) .bilingualLine.emptyLine { padding-bottom: 0; }
+.documentSheet.exportingPdf .documentLyrics:not(.verticalLyrics) .bilingualLine.hasTranslation { padding-bottom: 9px; }
+.documentSheet.exportingPdf .documentLyrics:not(.verticalLyrics) .translationLine { margin-bottom: 0; }
+.documentSheet.exportingPdf .documentHeader h3 { font-size: 29px; }
+.documentSheet.exportingPdf .lyricsLine { font-size: var(--doc-font-size, 18px); }
+.documentSheet.exportingPdf .documentLyrics.columns-2 {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--pdf-column-rows, 1), auto);
+  column-count: initial;
+  column-gap: 36px;
+  column-rule: 0;
+}
+.documentSheet.exportingPdf .documentLyrics.columns-2::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #ecece7;
+  content: "";
+}
 .emptyState { color: var(--muted); display: grid; place-items: center; min-height: 500px; font-size: 13px; }
 
 .rubyEditor {
@@ -397,10 +434,11 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
   .topbar { flex-direction: column; }
   .topActions { width: 100%; justify-content: flex-start; }
   .accountBadge { width: 100%; justify-content: space-between; padding-left: 0; }
-  .previewOutputActions { width: 100%; }
-  .exportMenu { flex: 1 0 100%; }
+  .previewOutputActions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .printButton { width: 100%; }
+  .exportMenu { min-width: 0; }
   .exportMenuTrigger { width: 100%; }
-  .exportMenuPanel { right: 0; left: 0; width: auto; }
+  .exportMenuPanel { right: 0; left: auto; width: min(290px, calc(100vw - 32px)); }
   .metaGrid { grid-template-columns: 1fr; }
   .lyricsSearchForm { grid-template-columns: 1fr; }
   .lyricsSearchActions { grid-column: auto; flex-wrap: wrap; }
