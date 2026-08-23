@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RubyEditor from "@/components/RubyEditor";
 import RubyPreview from "@/components/RubyPreview";
+import SocialLoginButtons from "@/components/SocialLoginButtons";
+import { useRubyHistory } from "@/hooks/useRubyHistory";
 import {
   annotate,
   deleteOverride,
   deleteProject,
   exportDocx,
+  getAuthConfig,
+  getCurrentUser,
   getTranslationStatus,
   getProject,
   listOverrides,
@@ -15,10 +19,13 @@ import {
   saveOverride,
   saveProject,
   searchLyrics,
+  setAccessToken,
   translateLines,
   updateOverride,
   updateProject,
 } from "@/lib/api";
+import { cloudAuthEnabled, getSupabaseClient, oauthProviders, type OAuthProvider } from "@/lib/auth";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/draft";
 import type { AnnotatedLine, DocumentMeta, LayoutSettings, LyricsSearchResult, OverrideItem, ProjectSummary, TranslationLanguage, TranslationProvider, TranslationProviderStatus } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
@@ -34,8 +41,6 @@ const DEFAULT_LAYOUT: LayoutSettings = {
   columns: 1,
   vertical_row_gap: 24,
 };
-const DRAFT_KEY = "furigana-studio:draft:v1";
-
 function formatDuration(seconds: number) {
   if (!seconds) return "时长未知";
   const rounded = Math.round(seconds);
@@ -53,9 +58,16 @@ export default function Home() {
   const [lyricsArtist, setLyricsArtist] = useState("");
   const [lyricsResults, setLyricsResults] = useState<LyricsSearchResult[]>([]);
   const [lyricsSearched, setLyricsSearched] = useState(false);
-  const [lines, setLines] = useState<AnnotatedLine[]>([]);
-  const [pastLines, setPastLines] = useState<AnnotatedLine[][]>([]);
-  const [futureLines, setFutureLines] = useState<AnnotatedLine[][]>([]);
+  const {
+    lines,
+    canUndo,
+    canRedo,
+    resetLines: setFreshLines,
+    replaceLines: setLines,
+    commitLines,
+    undo: undoRubyEdit,
+    redo: redoRubyEdit,
+  } = useRubyHistory();
   const [selected, setSelected] = useState<Selection>(null);
   const [busy, setBusy] = useState<"annotate" | "lyrics" | "translate" | "export" | "image" | "save" | null>(null);
   const [message, setMessage] = useState("");
@@ -66,46 +78,35 @@ export default function Home() {
   const [overridePanel, setOverridePanel] = useState(false);
   const [layoutPanel, setLayoutPanel] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authUser, setAuthUser] = useState<{ id: string; email: string } | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authBusy, setAuthBusy] = useState<OAuthProvider | "password" | null>(null);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const messageTimerRef = useRef<number | null>(null);
+  const authUserId = authUser?.id || "local";
 
   const selectedSegment = useMemo(() => {
     if (!selected) return null;
     return lines[selected.lineIndex]?.segments[selected.segmentIndex] || null;
   }, [lines, selected]);
 
-  function setFreshLines(next: AnnotatedLine[]) {
-    setLines(next);
-    setPastLines([]);
-    setFutureLines([]);
-  }
+  useEffect(() => () => {
+    if (messageTimerRef.current !== null) window.clearTimeout(messageTimerRef.current);
+  }, []);
 
   function preserveTranslations(next: AnnotatedLine[]) {
     return next.map((line, index) => ({
       ...line,
       translation: lines[index]?.source === line.source ? (lines[index].translation || "") : "",
     }));
-  }
-
-  function undoRubyEdit() {
-    if (!pastLines.length) return;
-    const previous = pastLines[pastLines.length - 1];
-    setPastLines(pastLines.slice(0, -1));
-    setFutureLines((future) => [lines, ...future].slice(0, 50));
-    setLines(previous);
-    setSelected(null);
-  }
-
-  function redoRubyEdit() {
-    if (!futureLines.length) return;
-    const next = futureLines[0];
-    setFutureLines(futureLines.slice(1));
-    setPastLines((past) => [...past.slice(-49), lines]);
-    setLines(next);
-    setSelected(null);
   }
 
   async function refreshProjects() {
@@ -125,21 +126,76 @@ export default function Home() {
   }
 
   useEffect(() => {
+    let active = true;
+    const supabase = getSupabaseClient();
+
+    async function applySession(token: string | null) {
+      setAccessToken(token);
+      if (!token) {
+        if (active) setAuthUser(null);
+        return;
+      }
+      try {
+        const user = await getCurrentUser();
+        if (active) setAuthUser(user);
+      } catch {
+        if (active) setAuthUser(null);
+      }
+    }
+
+    async function initializeAuth() {
+      let required = cloudAuthEnabled;
+      try {
+        required = (await getAuthConfig()).required;
+      } catch {
+        // If the API cannot be reached yet, the public Supabase settings remain authoritative.
+      }
+      if (!active) return;
+      setAuthRequired(required);
+      if (!required) {
+        setAccessToken(null);
+        setAuthUser({ id: "local", email: "本地模式" });
+        setAuthReady(true);
+        return;
+      }
+      if (!supabase) {
+        setAuthReady(true);
+        return;
+      }
+      const { data } = await supabase.auth.getSession();
+      await applySession(data.session?.access_token || null);
+      if (active) setAuthReady(true);
+    }
+
+    void initializeAuth();
+    const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
+      void applySession(session?.access_token || null).finally(() => active && setAuthReady(true));
+    }).data.subscription;
+    return () => {
+      active = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || (authRequired && !authUser)) return;
+    // The authenticated identity owns every piece of workspace state, so an identity change must reset it atomically.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProjects([]);
+    setOverrides([]);
+    setMeta(EMPTY_META);
+    setLayout(DEFAULT_LAYOUT);
+    setTranslationLanguage("none");
+    setSource("");
+    setFreshLines([]);
+    setSelected(null);
+    setCurrentProjectId(null);
     refreshProjects();
     refreshOverrides();
     getTranslationStatus().then(setTranslationStatus).catch(() => setTranslationStatus(null));
     try {
-      const raw = window.localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        meta?: DocumentMeta;
-        source?: string;
-        lines?: AnnotatedLine[];
-        layout?: LayoutSettings;
-        translationLanguage?: TranslationLanguage;
-        translationProvider?: TranslationProvider;
-        projectId?: number | null;
-      };
+      const draft = loadDraft(window.localStorage, authUserId);
+      if (!draft) return;
       if (draft.source || draft.meta?.title) {
         setMeta(draft.meta || EMPTY_META);
         setSource(draft.source || "");
@@ -151,25 +207,27 @@ export default function Home() {
         flash("已恢复上次未完成的草稿");
       }
     } catch {
-      window.localStorage.removeItem(DRAFT_KEY);
+      clearDraft(window.localStorage, authUserId);
     }
-  }, []);
+  }, [authReady, authRequired, authUser, authUserId, setFreshLines]);
 
   useEffect(() => {
     function handleHistoryShortcut(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
-      if (key === "z" && !event.shiftKey && pastLines.length) {
+      if (key === "z" && !event.shiftKey && canUndo) {
         event.preventDefault();
         undoRubyEdit();
-      } else if ((key === "y" || (key === "z" && event.shiftKey)) && futureLines.length) {
+        setSelected(null);
+      } else if ((key === "y" || (key === "z" && event.shiftKey)) && canRedo) {
         event.preventDefault();
         redoRubyEdit();
+        setSelected(null);
       }
     }
     window.addEventListener("keydown", handleHistoryShortcut);
     return () => window.removeEventListener("keydown", handleHistoryShortcut);
-  }, [pastLines, futureLines, lines]);
+  }, [canRedo, canUndo, redoRubyEdit, undoRubyEdit]);
 
   useEffect(() => {
     if (!exportMenuOpen) return;
@@ -195,22 +253,85 @@ export default function Home() {
   }, [exportMenuOpen]);
 
   useEffect(() => {
+    if (!authReady || (authRequired && !authUser)) return;
     const timer = window.setTimeout(() => {
       if (!source && !meta.title && !meta.artist && !meta.year && !lines.length) {
-        window.localStorage.removeItem(DRAFT_KEY);
+        clearDraft(window.localStorage, authUserId);
         return;
       }
-      window.localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({ meta, layout, translationLanguage, translationProvider, source, lines, projectId: currentProjectId }),
-      );
+      const saved = saveDraft(window.localStorage, authUserId, {
+        meta,
+        layout,
+        translationLanguage,
+        translationProvider,
+        source,
+        lines,
+        projectId: currentProjectId,
+      });
+      if (!saved) setMessage("浏览器存储空间不足，草稿未能自动保存");
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
+  }, [authReady, authRequired, authUser, authUserId, meta, layout, translationLanguage, translationProvider, source, lines, currentProjectId]);
 
   function flash(text: string) {
+    if (messageTimerRef.current !== null) window.clearTimeout(messageTimerRef.current);
     setMessage(text);
-    window.setTimeout(() => setMessage(""), 2400);
+    messageTimerRef.current = window.setTimeout(() => {
+      setMessage("");
+      messageTimerRef.current = null;
+    }, 2400);
+  }
+
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase) return flash("缺少 Supabase 前端环境变量");
+    if (!authEmail.trim() || authPassword.length < 6) return flash("请输入邮箱和至少 6 位密码");
+    setAuthBusy("password");
+    try {
+      const result = authMode === "signup"
+        ? await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword })
+        : await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
+      if (result.error) throw result.error;
+      if (authMode === "signup" && !result.data.session) {
+        flash("注册成功，请查收验证邮件后登录");
+        setAuthMode("signin");
+      } else {
+        flash(authMode === "signup" ? "注册并登录成功" : "登录成功");
+      }
+      setAuthPassword("");
+    } catch (error) {
+      flash(`${authMode === "signup" ? "注册" : "登录"}失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setAuthBusy(null);
+    }
+  }
+
+  async function handleOAuthSignIn(provider: OAuthProvider) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return flash("缺少 Supabase 前端环境变量");
+    setAuthBusy(provider);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
+    } catch (error) {
+      const providerName = provider === "google" ? "Google" : "GitHub";
+      flash(`${providerName} 登录失败：${error instanceof Error ? error.message : "未知错误"}`);
+      setAuthBusy(null);
+    }
+  }
+
+  async function handleSignOut() {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setProjects([]);
+    setOverrides([]);
+    setCurrentProjectId(null);
+    flash("已退出登录");
   }
 
   async function handleLyricsSearch(event: FormEvent<HTMLFormElement>) {
@@ -313,42 +434,45 @@ export default function Home() {
               ),
             },
       );
-    setPastLines((past) => [...past.slice(-49), lines]);
-    setFutureLines([]);
-    setLines(next);
+    commitLines(next);
   }
 
   async function handleSaveOverride(context: string, reading: string, scope: OverrideItem["scope"]) {
     if (!selected || !selectedSegment?.text || !reading) return;
     const surface = selectedSegment.text;
     const normalizedReading = reading.trim();
-    await saveOverride(surface, normalizedReading, context, scope, currentProjectId);
+    try {
+      await saveOverride(surface, normalizedReading, context, scope, currentProjectId);
 
-    // Keep all matching occurrences in the current preview in sync immediately.
-    setFreshLines(
-      lines.map((line) =>
-        scope === "sentence" && context && !line.source.includes(context)
-          ? line
-          : {
-              ...line,
-              segments: line.segments.map((segment) =>
-                segment.text === surface
-                  ? {
-                      ...segment,
-                      ruby: normalizedReading,
-                      candidates: [normalizedReading, ...(segment.candidates || []).filter((item) => item !== normalizedReading)],
-                      confidence: "high",
-                    }
-                  : segment,
-              ),
-            },
-      ),
-    );
-    await refreshOverrides();
-    flash(`已保存「${surface} → ${normalizedReading}」，当前预览已同步`);
+      // Keep all matching occurrences in the current preview in sync immediately.
+      setFreshLines(
+        lines.map((line) =>
+          scope === "sentence" && context && !line.source.includes(context)
+            ? line
+            : {
+                ...line,
+                segments: line.segments.map((segment) =>
+                  segment.text === surface
+                    ? {
+                        ...segment,
+                        ruby: normalizedReading,
+                        candidates: [normalizedReading, ...(segment.candidates || []).filter((item) => item !== normalizedReading)],
+                        confidence: "high",
+                      }
+                    : segment,
+                ),
+              },
+        ),
+      );
+      await refreshOverrides();
+      flash(`已保存「${surface} → ${normalizedReading}」，当前预览已同步`);
+    } catch (error) {
+      flash(`保存规则失败：${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
 
   async function removeOverride(id: number) {
+    if (!window.confirm("确定删除这条读音规则吗？")) return;
     try {
       await deleteOverride(id);
       await refreshOverrides();
@@ -551,9 +675,15 @@ export default function Home() {
   }
 
   async function removeProject(id: number) {
-    await deleteProject(id);
-    if (currentProjectId === id) setCurrentProjectId(null);
-    await refreshProjects();
+    if (!window.confirm("确定删除这个项目吗？此操作无法撤销。")) return;
+    try {
+      await deleteProject(id);
+      if (currentProjectId === id) setCurrentProjectId(null);
+      await refreshProjects();
+      flash("项目已删除");
+    } catch (error) {
+      flash(`删除失败：${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
 
   function reset() {
@@ -568,7 +698,7 @@ export default function Home() {
     setFreshLines([]);
     setSelected(null);
     setCurrentProjectId(null);
-    window.localStorage.removeItem(DRAFT_KEY);
+    clearDraft(window.localStorage, authUserId);
   }
 
   return (
@@ -582,6 +712,7 @@ export default function Home() {
           </div>
         </div>
         <div className="topActions">
+          {authReady && (!authRequired || authUser) && <>
           <button className="ghostButton" onClick={() => setProjectPanel((x) => !x)}>历史项目</button>
           <button
             className="ghostButton"
@@ -592,74 +723,65 @@ export default function Home() {
           >
             读音规则{overrides.length ? ` (${overrides.length})` : ""}
           </button>
-          <button className="ghostButton" onClick={() => setLayoutPanel((value) => !value)}>排版设置</button>
           <button className="ghostButton" onClick={reset}>新建</button>
-          <button className="secondaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
+          <button className="primaryButton" disabled={!lines.length || busy !== null} onClick={handleSaveProject}>
             {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
           </button>
-          <div className="exportMenu" ref={exportMenuRef}>
-            <button
-              ref={exportButtonRef}
-              className="primaryButton exportMenuTrigger"
-              type="button"
-              disabled={!lines.length || busy !== null}
-              aria-expanded={exportMenuOpen}
-              aria-controls="export-format-menu"
-              onClick={() => setExportMenuOpen((open) => !open)}
-            >
-              {busy === "image" ? "生成 PNG…" : busy === "export" ? "生成 Word…" : "导出"}
-              <span className="exportChevron" aria-hidden="true">▾</span>
-            </button>
-            {exportMenuOpen && (
-              <div id="export-format-menu" className="exportMenuPanel" role="group" aria-label="选择导出格式">
-                <button
-                  className="exportMenuItem"
-                  type="button"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void handleDownloadImage();
-                  }}
-                >
-                  <span className="exportMenuItemText">
-                    <strong>PNG 图片</strong>
-                    <small>下载高清图片，适合分享</small>
-                  </span>
-                  <span className="exportExtension">.png</span>
-                </button>
-                <button
-                  className="exportMenuItem"
-                  type="button"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    void handleExport();
-                  }}
-                >
-                  <span className="exportMenuItemText">
-                    <strong>Word 文档</strong>
-                    <small>保留可编辑文字和原生注音</small>
-                  </span>
-                  <span className="exportExtension">.docx</span>
-                </button>
-                <button
-                  className="exportMenuItem"
-                  type="button"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    handlePrint();
-                  }}
-                >
-                  <span className="exportMenuItemText">
-                    <strong>PDF 文档</strong>
-                    <small>在打印窗口中选择“另存为 PDF”</small>
-                  </span>
-                  <span className="exportExtension">.pdf</span>
-                </button>
-              </div>
-            )}
-          </div>
+          </>}
+          {authRequired && authUser && (
+            <div className="accountBadge">
+              <span title={authUser.email}>{authUser.email || "已登录"}</span>
+              <button className="ghostButton compactButton" onClick={handleSignOut}>退出</button>
+            </div>
+          )}
         </div>
       </header>
 
+      {!authReady ? (
+        <section className="authGate card"><p>正在检查登录状态…</p></section>
+      ) : authRequired && !authUser ? (
+        <section className="authGate card">
+          <div>
+            <span className="eyebrow">CLOUD ACCOUNT</span>
+            <h2>{authMode === "signin" ? "登录 Furigana Studio" : "创建账户"}</h2>
+            <p>登录后，历史项目和读音规则将只对你的账户可见。</p>
+          </div>
+          {cloudAuthEnabled ? (
+            <div className="authMethods">
+              <SocialLoginButtons providers={oauthProviders} busyProvider={authBusy} onSignIn={handleOAuthSignIn} />
+              <form onSubmit={handleAuth}>
+                <label>
+                  邮箱
+                  <input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} required />
+                </label>
+                <label>
+                  密码
+                  <input
+                    type="password"
+                    minLength={6}
+                    autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    required
+                  />
+                </label>
+                <button className="primaryButton" disabled={authBusy !== null} type="submit">
+                  {authBusy === "password" ? "请稍候…" : authMode === "signin" ? "登录" : "注册"}
+                </button>
+                <button
+                  className="ghostButton"
+                  type="button"
+                  onClick={() => setAuthMode((mode) => mode === "signin" ? "signup" : "signin")}
+                >
+                  {authMode === "signin" ? "没有账户？注册" : "已有账户？登录"}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <p className="authConfigError">部署缺少 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</p>
+          )}
+        </section>
+      ) : <>
       {projectPanel && (
         <section className="projectPanel">
           <div className="panelTitle">
@@ -780,86 +902,6 @@ export default function Home() {
         </section>
       )}
 
-      {layoutPanel && (
-        <section className="layoutPanel card">
-          <div className="panelTitle">
-            <div>
-              <strong>排版设置</strong>
-              <span>同步应用到预览、PNG、打印和 Word</span>
-            </div>
-            <button className="ghostButton compactButton" onClick={() => setLayout(DEFAULT_LAYOUT)}>恢复默认</button>
-          </div>
-          <div className="layoutGrid">
-            <label>
-              正文字号 <output>{layout.font_size}px</output>
-              <input type="range" min="12" max="32" value={layout.font_size} onChange={(event) => setLayout({ ...layout, font_size: Number(event.target.value) })} />
-            </label>
-            <label>
-              行距 <output>{layout.line_spacing.toFixed(1)}</output>
-              <input type="range" min="1.2" max="4" step="0.1" value={layout.line_spacing} onChange={(event) => setLayout({ ...layout, line_spacing: Number(event.target.value) })} />
-            </label>
-            <label>
-              振假名大小 <output>{Math.round(layout.ruby_scale * 100)}%</output>
-              <input type="range" min="0.35" max="0.9" step="0.05" value={layout.ruby_scale} onChange={(event) => setLayout({ ...layout, ruby_scale: Number(event.target.value) })} />
-            </label>
-            <label>
-              页边距 <output>{layout.page_margin}px</output>
-              <input type="range" min="16" max="96" value={layout.page_margin} onChange={(event) => setLayout({ ...layout, page_margin: Number(event.target.value) })} />
-            </label>
-            <label>
-              字体
-              <select value={layout.font_family} onChange={(event) => setLayout({ ...layout, font_family: event.target.value as LayoutSettings["font_family"] })}>
-                <option value="gothic">日文黑体</option>
-                <option value="mincho">日文明朝体</option>
-                <option value="system">系统字体</option>
-              </select>
-            </label>
-            <label>
-              排列方向
-              <select
-                value={layout.vertical ? "vertical" : "horizontal"}
-                onChange={(event) => {
-                  const vertical = event.target.value === "vertical";
-                  setLayout({ ...layout, vertical });
-                }}
-              >
-                <option value="horizontal">横排</option>
-                <option value="vertical">竖排</option>
-              </select>
-            </label>
-            <label>
-              {layout.vertical ? "竖排换列" : "正文分栏"}
-              <select
-                value={layout.vertical ? "auto" : String(layout.columns)}
-                disabled={layout.vertical}
-                onChange={(event) => setLayout({ ...layout, columns: Number(event.target.value) as LayoutSettings["columns"] })}
-              >
-                {layout.vertical ? (
-                    <option value="auto">排满后向下换组</option>
-                ) : (
-                  <>
-                    <option value="1">单栏</option>
-                    <option value="2">双栏</option>
-                  </>
-                )}
-              </select>
-            </label>
-            <label>
-              竖排组间距 <output>{layout.vertical_row_gap}px</output>
-              <input
-                type="range"
-                min="0"
-                max="160"
-                step="4"
-                value={layout.vertical_row_gap}
-                disabled={!layout.vertical}
-                onChange={(event) => setLayout({ ...layout, vertical_row_gap: Number(event.target.value) })}
-              />
-            </label>
-          </div>
-        </section>
-      )}
-
       <section className="lyricsLookup card">
         <div className="lyricsLookupHead">
           <div>
@@ -887,7 +929,7 @@ export default function Home() {
             />
           </label>
           <div className="lyricsSearchActions">
-            <button className="primaryButton" type="submit" disabled={!lyricsTrack.trim() || busy === "lyrics"}>
+            <button className="primaryButton" type="submit" disabled={!lyricsTrack.trim() || busy !== null}>
               {busy === "lyrics" ? "搜索中…" : "搜索歌词"}
             </button>
             {lyricsTrack.trim() ? (
@@ -949,14 +991,14 @@ export default function Home() {
         </label>
       </section>
 
-      <section className="workspace">
+      <section className={`workspace${layoutPanel ? " layoutEditing" : ""}`}>
         <div className="card editorCard">
           <div className="cardHead">
             <div>
               <span className="eyebrow">01 / INPUT</span>
               <h2>原文</h2>
             </div>
-            <button className="primaryButton" disabled={busy === "annotate"} onClick={handleAnnotate}>
+            <button className="primaryButton" disabled={busy !== null} onClick={handleAnnotate}>
               {busy === "annotate" ? "分析中…" : lines.length ? "重新标注" : "自动标注"}
             </button>
           </div>
@@ -976,29 +1018,195 @@ export default function Home() {
           <div className="footNote">Sudachi 负责词形与读音；现有假名会作为锚点，只给汉字部分生成振假名。</div>
         </div>
 
-        <div className="card previewCard">
+        <div className={`card previewCard${exportMenuOpen ? " exportMenuOpen" : ""}`}>
           <div className="cardHead">
             <div>
               <span className="eyebrow">02 / REVIEW</span>
-              <h2>振假名预览</h2>
+              <div className="previewTitleRow">
+                <h2>振假名预览</h2>
+                <div className="previewHelp">
+                  <button
+                    type="button"
+                    className="previewHelpButton"
+                    aria-label="查看振假名编辑提示"
+                    aria-describedby="preview-help-tip"
+                  >
+                    <span aria-hidden="true">i</span>
+                  </button>
+                  <div id="preview-help-tip" className="previewHelpPopover" role="tooltip">
+                    点击预览中的振假名即可修改读音。
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="reviewActions">
-              <button className="ghostButton compactButton" disabled={!pastLines.length} onClick={undoRubyEdit}>撤销</button>
-              <button className="ghostButton compactButton" disabled={!futureLines.length} onClick={redoRubyEdit}>重做</button>
-              <span className="hintPill">点击振假名可修改</span>
+              <button className="ghostButton compactButton" disabled={!canUndo} onClick={() => { undoRubyEdit(); setSelected(null); }}>撤销</button>
+              <button className="ghostButton compactButton" disabled={!canRedo} onClick={() => { redoRubyEdit(); setSelected(null); }}>重做</button>
+              <button
+                className={`ghostButton compactButton${layoutPanel ? " activeButton" : ""}`}
+                aria-expanded={layoutPanel}
+                aria-controls="preview-layout-panel"
+                onClick={() => setLayoutPanel((value) => !value)}
+              >
+                排版设置
+              </button>
+              <div className="previewOutputActions">
+                <div className="exportMenu" ref={exportMenuRef}>
+                  <button
+                    ref={exportButtonRef}
+                    className="primaryButton compactButton exportMenuTrigger"
+                    type="button"
+                    disabled={!lines.length || busy !== null}
+                    aria-expanded={exportMenuOpen}
+                    aria-controls="export-format-menu"
+                    onClick={() => setExportMenuOpen((open) => !open)}
+                  >
+                    {busy === "image" ? "生成 PNG…" : busy === "export" ? "生成 Word…" : "导出"}
+                    <span className="exportChevron" aria-hidden="true">▾</span>
+                  </button>
+                  {exportMenuOpen && (
+                    <div id="export-format-menu" className="exportMenuPanel" role="group" aria-label="选择导出格式">
+                      <button
+                        className="exportMenuItem"
+                        type="button"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          void handleDownloadImage();
+                        }}
+                      >
+                        <span className="exportMenuItemText">
+                          <strong>PNG 图片</strong>
+                          <small>下载高清图片，适合分享</small>
+                        </span>
+                        <span className="exportExtension">.png</span>
+                      </button>
+                      <button
+                        className="exportMenuItem"
+                        type="button"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          void handleExport();
+                        }}
+                      >
+                        <span className="exportMenuItemText">
+                          <strong>Word 文档</strong>
+                          <small>保留可编辑文字和原生注音</small>
+                        </span>
+                        <span className="exportExtension">.docx</span>
+                      </button>
+                      <button
+                        className="exportMenuItem"
+                        type="button"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          handlePrint();
+                        }}
+                      >
+                        <span className="exportMenuItemText">
+                          <strong>PDF 文档</strong>
+                          <small>在打印窗口中选择“另存为 PDF”</small>
+                        </span>
+                        <span className="exportExtension">.pdf</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <RubyPreview
-            ref={documentSheetRef}
-            meta={meta}
-            layout={layout}
-            translationLanguage={translationLanguage}
-            lines={lines}
-            selected={selected}
-            onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
-          />
+          <div className={`previewBody${layoutPanel ? " hasLayoutPanel" : ""}`}>
+            <RubyPreview
+              ref={documentSheetRef}
+              meta={meta}
+              layout={layout}
+              translationLanguage={translationLanguage}
+              lines={lines}
+              selected={selected}
+              onSelect={(lineIndex, segmentIndex) => setSelected({ lineIndex, segmentIndex })}
+            />
+            {layoutPanel && (
+              <aside id="preview-layout-panel" className="layoutPanel previewLayoutPanel" aria-label="排版设置">
+                <div className="panelTitle">
+                  <div>
+                    <strong>排版设置</strong>
+                    <span>实时应用到预览、PNG、打印和 Word</span>
+                  </div>
+                  <div className="layoutPanelActions">
+                    <button className="ghostButton compactButton" onClick={() => setLayout(DEFAULT_LAYOUT)}>恢复默认</button>
+                    <button className="iconButton layoutCloseButton" aria-label="关闭排版设置" onClick={() => setLayoutPanel(false)}>×</button>
+                  </div>
+                </div>
+                <div className="layoutGrid">
+                  <label>
+                    正文字号 <output>{layout.font_size}px</output>
+                    <input type="range" min="12" max="32" value={layout.font_size} onChange={(event) => setLayout({ ...layout, font_size: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    行距 <output>{layout.line_spacing.toFixed(1)}</output>
+                    <input type="range" min="1.2" max="4" step="0.1" value={layout.line_spacing} onChange={(event) => setLayout({ ...layout, line_spacing: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    振假名大小 <output>{Math.round(layout.ruby_scale * 100)}%</output>
+                    <input type="range" min="0.35" max="0.9" step="0.05" value={layout.ruby_scale} onChange={(event) => setLayout({ ...layout, ruby_scale: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    页边距 <output>{layout.page_margin}px</output>
+                    <input type="range" min="16" max="96" value={layout.page_margin} onChange={(event) => setLayout({ ...layout, page_margin: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    字体
+                    <select value={layout.font_family} onChange={(event) => setLayout({ ...layout, font_family: event.target.value as LayoutSettings["font_family"] })}>
+                      <option value="gothic">日文黑体</option>
+                      <option value="mincho">日文明朝体</option>
+                      <option value="system">系统字体</option>
+                    </select>
+                  </label>
+                  <label>
+                    排列方向
+                    <select
+                      value={layout.vertical ? "vertical" : "horizontal"}
+                      onChange={(event) => setLayout({ ...layout, vertical: event.target.value === "vertical" })}
+                    >
+                      <option value="horizontal">横排</option>
+                      <option value="vertical">竖排</option>
+                    </select>
+                  </label>
+                  <label>
+                    {layout.vertical ? "竖排换列" : "正文分栏"}
+                    <select
+                      value={layout.vertical ? "auto" : String(layout.columns)}
+                      disabled={layout.vertical}
+                      onChange={(event) => setLayout({ ...layout, columns: Number(event.target.value) as LayoutSettings["columns"] })}
+                    >
+                      {layout.vertical ? (
+                        <option value="auto">排满后向下换组</option>
+                      ) : (
+                        <>
+                          <option value="1">单栏</option>
+                          <option value="2">双栏</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    竖排组间距 <output>{layout.vertical_row_gap}px</output>
+                    <input
+                      type="range"
+                      min="0"
+                      max="160"
+                      step="4"
+                      value={layout.vertical_row_gap}
+                      disabled={!layout.vertical}
+                      onChange={(event) => setLayout({ ...layout, vertical_row_gap: Number(event.target.value) })}
+                    />
+                  </label>
+                </div>
+              </aside>
+            )}
+          </div>
           {selected && (
             <RubyEditor
+              key={`${selected.lineIndex}-${selected.segmentIndex}`}
               lines={lines}
               selected={selected}
               projectId={currentProjectId}
@@ -1038,14 +1246,14 @@ export default function Home() {
           <div className="translationActions">
             <button
               className="secondaryButton compactButton"
-              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
+              disabled={translationLanguage === "none" || !lines.length || busy !== null || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
               onClick={() => handleTranslate("empty")}
             >
               {busy === "translate" ? "翻译中…" : "翻译空白行"}
             </button>
             <button
               className="ghostButton compactButton"
-              disabled={translationLanguage === "none" || !lines.length || busy === "translate" || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
+              disabled={translationLanguage === "none" || !lines.length || busy !== null || !translationStatus?.providers.find((item) => item.id === translationProvider)?.configured}
               onClick={() => handleTranslate("all")}
             >
               重新翻译全部
@@ -1083,6 +1291,7 @@ export default function Home() {
       <footer>
         通过导出菜单下载 PNG、Word，或使用 A4 打印保存 PDF；Word 使用原生 WordprocessingML <code>w:ruby</code>。
       </footer>
+      </>}
 
       {message && <div className="toast" role="status" aria-live="polite">{message}</div>}
       <style>{`@media print { @page { margin: ${(layout.page_margin * 0.32).toFixed(1)}mm; } }`}</style>

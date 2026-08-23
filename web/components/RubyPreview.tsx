@@ -30,9 +30,11 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
     mincho: '"Yu Mincho", "Hiragino Mincho ProN", serif',
     system: 'Inter, ui-sans-serif, system-ui, sans-serif',
   };
+  const rowHeight = layout.font_size * Math.max(layout.line_spacing, 1.2 + layout.ruby_scale);
   const documentStyle = {
     "--doc-font-size": `${layout.font_size}px`,
     "--doc-line-height": String(layout.line_spacing),
+    "--doc-row-height": `${rowHeight}px`,
     "--doc-ruby-size": `${layout.ruby_scale}em`,
     "--doc-margin": `${layout.page_margin}px`,
     "--doc-font-family": fonts[layout.font_family],
@@ -51,7 +53,10 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
 
         <div className={`documentLyrics ${layout.vertical ? "verticalLyrics" : `columns-${layout.columns || 1}`}`}>
           {lines.map((line, lineIndex) => (
-            <div className="bilingualLine" key={`${lineIndex}-${line.source}`}>
+            <div
+              className={`bilingualLine${line.segments.length === 0 ? " emptyLine" : ""}`}
+              key={`${lineIndex}-${line.source}`}
+            >
               <div className="lyricsLine">
                 {line.segments.length === 0 ? (
                   <span>&nbsp;</span>
@@ -66,6 +71,15 @@ const RubyPreview = forwardRef<HTMLElement, Props>(function RubyPreview(
                         className={className}
                         key={`${lineIndex}-${segmentIndex}`}
                         onClick={() => onSelect(lineIndex, segmentIndex)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onSelect(lineIndex, segmentIndex);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`编辑「${segment.text}」的读音，当前为「${segment.ruby}」`}
                         title={(segment.candidates?.length || 0) > 1 ? `候选：${segment.candidates?.join(" / ")}` : "点击修改读音"}
                       >
                         {segment.text}

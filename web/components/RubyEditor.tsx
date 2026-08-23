@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { AnnotatedLine, OverrideItem } from "@/lib/types";
 
 type Selection = { lineIndex: number; segmentIndex: number } | null;
@@ -21,10 +21,6 @@ export default function RubyEditor({ lines, selected, projectId, onChange, onSav
   const [saving, setSaving] = useState(false);
   const [scope, setScope] = useState<OverrideItem["scope"]>("sentence");
 
-  useEffect(() => {
-    setValue(segment?.ruby || "");
-  }, [segment?.ruby, selected?.lineIndex, selected?.segmentIndex]);
-
   if (!segment || !line || !selected) return null;
   const context = line.source;
 
@@ -39,7 +35,14 @@ export default function RubyEditor({ lines, selected, projectId, onChange, onSav
   }
 
   return (
-    <div className="rubyEditor">
+    <div
+      className="rubyEditor"
+      role="dialog"
+      aria-label="编辑振假名"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
+    >
       <div className="rubyEditorHead">
         <div>
           <span className="eyebrow">当前汉字</span>
