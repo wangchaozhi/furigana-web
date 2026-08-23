@@ -65,9 +65,12 @@ export default function Home() {
   const [overrides, setOverrides] = useState<OverrideItem[]>([]);
   const [overridePanel, setOverridePanel] = useState(false);
   const [layoutPanel, setLayoutPanel] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [editingOverride, setEditingOverride] = useState<OverrideItem | null>(null);
   const documentSheetRef = useRef<HTMLElement>(null);
   const ruleImportRef = useRef<HTMLInputElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
 
   const selectedSegment = useMemo(() => {
     if (!selected) return null;
@@ -167,6 +170,29 @@ export default function Home() {
     window.addEventListener("keydown", handleHistoryShortcut);
     return () => window.removeEventListener("keydown", handleHistoryShortcut);
   }, [pastLines, futureLines, lines]);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (event.target instanceof Node && !exportMenuRef.current?.contains(event.target)) {
+        setExportMenuOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setExportMenuOpen(false);
+      exportButtonRef.current?.focus();
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [exportMenuOpen]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -552,7 +578,7 @@ export default function Home() {
           <div className="brandMark">振</div>
           <div>
             <h1>Furigana Studio</h1>
-            <p>只标汉字 · PNG 图片 · A4 打印 · Word Ruby</p>
+            <p>只标汉字 · PNG · DOCX · A4 PDF</p>
           </div>
         </div>
         <div className="topActions">
@@ -571,15 +597,66 @@ export default function Home() {
           <button className="secondaryButton" disabled={!lines.length || busy === "save"} onClick={handleSaveProject}>
             {busy === "save" ? "保存中…" : currentProjectId ? "更新项目" : "保存项目"}
           </button>
-          <button className="ghostButton" disabled={!lines.length} onClick={handlePrint}>
-            打印
-          </button>
-          <button className="secondaryButton" disabled={!lines.length || busy === "image"} onClick={handleDownloadImage}>
-            {busy === "image" ? "生成中…" : "下载 PNG"}
-          </button>
-          <button className="primaryButton" disabled={!lines.length || busy === "export"} onClick={handleExport}>
-            {busy === "export" ? "生成中…" : "导出 Word"}
-          </button>
+          <div className="exportMenu" ref={exportMenuRef}>
+            <button
+              ref={exportButtonRef}
+              className="primaryButton exportMenuTrigger"
+              type="button"
+              disabled={!lines.length || busy !== null}
+              aria-expanded={exportMenuOpen}
+              aria-controls="export-format-menu"
+              onClick={() => setExportMenuOpen((open) => !open)}
+            >
+              {busy === "image" ? "生成 PNG…" : busy === "export" ? "生成 Word…" : "导出"}
+              <span className="exportChevron" aria-hidden="true">▾</span>
+            </button>
+            {exportMenuOpen && (
+              <div id="export-format-menu" className="exportMenuPanel" role="group" aria-label="选择导出格式">
+                <button
+                  className="exportMenuItem"
+                  type="button"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void handleDownloadImage();
+                  }}
+                >
+                  <span className="exportMenuItemText">
+                    <strong>PNG 图片</strong>
+                    <small>下载高清图片，适合分享</small>
+                  </span>
+                  <span className="exportExtension">.png</span>
+                </button>
+                <button
+                  className="exportMenuItem"
+                  type="button"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    void handleExport();
+                  }}
+                >
+                  <span className="exportMenuItemText">
+                    <strong>Word 文档</strong>
+                    <small>保留可编辑文字和原生注音</small>
+                  </span>
+                  <span className="exportExtension">.docx</span>
+                </button>
+                <button
+                  className="exportMenuItem"
+                  type="button"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    handlePrint();
+                  }}
+                >
+                  <span className="exportMenuItemText">
+                    <strong>PDF 文档</strong>
+                    <small>在打印窗口中选择“另存为 PDF”</small>
+                  </span>
+                  <span className="exportExtension">.pdf</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1004,10 +1081,10 @@ export default function Home() {
       </section>
 
       <footer>
-        预览页可直接下载 PNG 或打印；Word 导出使用原生 WordprocessingML <code>w:ruby</code>。
+        通过导出菜单下载 PNG、Word，或使用 A4 打印保存 PDF；Word 使用原生 WordprocessingML <code>w:ruby</code>。
       </footer>
 
-      {message && <div className="toast">{message}</div>}
+      {message && <div className="toast" role="status" aria-live="polite">{message}</div>}
       <style>{`@media print { @page { margin: ${(layout.page_margin * 0.32).toFixed(1)}mm; } }`}</style>
     </main>
   );

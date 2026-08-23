@@ -54,6 +54,56 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .primaryButton:hover:not(:disabled), .secondaryButton:hover:not(:disabled), .ghostButton:hover:not(:disabled) { transform: translateY(-1px); }
 .full { width: 100%; }
 
+.exportMenu { position: relative; }
+.exportMenuTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.exportChevron { font-size: 10px; transition: transform .15s ease; }
+.exportMenuTrigger[aria-expanded="true"] .exportChevron { transform: rotate(180deg); }
+.exportMenuPanel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 268px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  box-shadow: 0 18px 50px rgba(20, 20, 16, .14);
+}
+.exportMenuItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 11px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  text-align: left;
+}
+.exportMenuItem:hover, .exportMenuItem:focus-visible { background: var(--soft); outline: none; }
+.exportMenuItem:focus-visible { box-shadow: inset 0 0 0 2px #b8b8b0; }
+.exportMenuItemText { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.exportMenuItemText strong { font-size: 12px; }
+.exportMenuItemText small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.exportExtension {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  color: #686862;
+  background: #f0f0eb;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+}
+
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
   box-shadow: var(--shadow);
@@ -280,6 +330,9 @@ footer code { background: #e7e7e2; padding: 2px 5px; border-radius: 5px; }
 @media (max-width: 620px) {
   .topbar { flex-direction: column; }
   .topActions { width: 100%; justify-content: flex-start; }
+  .exportMenu { flex: 1 0 100%; }
+  .exportMenuTrigger { width: 100%; }
+  .exportMenuPanel { right: 0; left: 0; width: auto; }
   .metaGrid { grid-template-columns: 1fr; }
   .lyricsSearchForm { grid-template-columns: 1fr; }
   .lyricsSearchActions { grid-column: auto; flex-wrap: wrap; }
